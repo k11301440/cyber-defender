@@ -6,6 +6,8 @@ data class Stage(
     val subtitle: String,
     val layer: OsiLayer,
     val difficulty: String,
+    val timeLimitSeconds: Int? = null, // エンドコンテンツは制限時間あり
+    val isEndgame: Boolean = false,
     val createThreat: () -> Threat
 )
 
@@ -76,6 +78,16 @@ object StageCatalog {
             layer = OsiLayer.L7_APPLICATION,
             difficulty = "FINAL BOSS",
             createThreat = { ThreatCatalog.createL7SqlInjection() }
+        ),
+        Stage(
+            id = 8,
+            title = "エンドコンテンツ: OSI多段波状攻撃サバイバル",
+            subtitle = "【全層複合: アプセトネデブ緊急スクランブル】",
+            layer = OsiLayer.L7_APPLICATION,
+            difficulty = "NIGHTMARE",
+            timeLimitSeconds = 90, // 90秒制限
+            isEndgame = true,
+            createThreat = { ThreatCatalog.createEndgameMultiApt() }
         )
     )
 

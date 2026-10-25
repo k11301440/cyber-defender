@@ -8,6 +8,7 @@ import androidx.navigation3.ui.NavDisplay
 import com.example.cyberdefender.ui.screens.BattleScreen
 import com.example.cyberdefender.ui.screens.KnowledgeScreen
 import com.example.cyberdefender.ui.screens.StageSelectScreen
+import com.example.cyberdefender.ui.screens.UpgradeScreen
 import com.example.cyberdefender.viewmodel.BattleViewModel
 
 @Composable
@@ -22,12 +23,16 @@ fun MainNavigation(
         entryProvider = entryProvider {
             entry<StageSelectKey> {
                 StageSelectScreen(
+                    viewModel = viewModel,
                     onSelectStage = { stageId ->
                         viewModel.selectStage(stageId)
                         backStack.add(BattleKey)
                     },
                     onOpenKnowledge = {
                         backStack.add(KnowledgeKey)
+                    },
+                    onOpenUpgrades = {
+                        backStack.add(UpgradeKey)
                     }
                 )
             }
@@ -36,11 +41,26 @@ fun MainNavigation(
                     viewModel = viewModel,
                     onNavigateBack = {
                         backStack.removeLastOrNull()
+                    },
+                    onOpenKnowledge = {
+                        backStack.add(KnowledgeKey)
+                    },
+                    onOpenUpgrades = {
+                        backStack.add(UpgradeKey)
                     }
                 )
             }
             entry<KnowledgeKey> {
                 KnowledgeScreen(
+                    viewModel = viewModel,
+                    onNavigateBack = {
+                        backStack.removeLastOrNull()
+                    }
+                )
+            }
+            entry<UpgradeKey> {
+                UpgradeScreen(
+                    viewModel = viewModel,
                     onNavigateBack = {
                         backStack.removeLastOrNull()
                     }

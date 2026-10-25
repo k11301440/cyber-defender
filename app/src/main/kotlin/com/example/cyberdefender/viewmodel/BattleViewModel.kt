@@ -1,335 +1,513 @@
 package com.example.cyberdefender.viewmodel
 
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
 import com.example.cyberdefender.model.*
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
 
 class BattleViewModel : ViewModel() {
+
+    // ゲーム全体の永続進行状況（クリア状況、アンロック層、予算、強化、図鑑）
+    private val _gameProgress = MutableStateFlow(GameProgress())
+    val gameProgress: StateFlow<GameProgress> = _gameProgress.asStateFlow()
 
     private val _currentStageId = MutableStateFlow(1)
     val currentStageId: StateFlow<Int> = _currentStageId.asStateFlow()
 
-    private val _battleState = MutableStateFlow(createInitialBattleState(1))
+    private val _battleState = MutableStateFlow(createInitialBattleState(1, _gameProgress.value))
     val battleState: StateFlow<BattleState> = _battleState.asStateFlow()
 
-    val availableActions = DefenseActionCatalog.allActions
+    private var timerJob: Job? = null
+
+    init {
+        startTimerIfNeeded()
+    }
 
     fun selectStage(stageId: Int) {
         _currentStageId.value = stageId
-        _battleState.value = createInitialBattleState(stageId)
+        _battleState.value = createInitialBattleState(stageId, _gameProgress.value)
+        startTimerIfNeeded()
     }
 
     fun restartStage() {
-        _battleState.value = createInitialBattleState(_currentStageId.value)
+        _battleState.value = createInitialBattleState(_currentStageId.value, _gameProgress.value)
+        startTimerIfNeeded()
     }
 
-    private fun createInitialBattleState(stageId: Int): BattleState {
+    private fun startTimerIfNeeded() {
+        timerJob?.cancel()
+        val stage = StageCatalog.stages.find { it.id == _currentStageId.value } ?: return
+        val limit = stage.timeLimitSeconds ?: return
+
+        timerJob = viewModelScope.launch {
+            var timeLeft = limit
+            while (timeLeft > 0) {
+                delay(1000L)
+                if (_battleState.value.phase != BattlePhase.IN_BATTLE) break
+                timeLeft--
+                _battleState.update { it.copy(remainingTimeSeconds = timeLeft) }
+            }
+            if (timeLeft <= 0 && _battleState.value.phase == BattlePhase.IN_BATTLE) {
+                // タイムアップ敗北
+                addChatMessage(
+                    ChatSenderType.ALERT,
+                    "緊急スクランブル警報",
+                    "制限時間（90秒）が超過！APT部隊により全社基幹サーバが完全に掌握されました…！",
+                    isImportant = true
+                )
+                _battleState.update { it.copy(phase = BattlePhase.DEFEAT, serverHp = 0) }
+            }
+        }
+    }
+
+    private fun createInitialBattleState(stageId: Int, progress: GameProgress): BattleState {
         val stage = StageCatalog.stages.find { it.id == stageId } ?: StageCatalog.stages.first()
         val threat = stage.createThreat()
         val firstAttack = threat.attackList.first()
 
-        val initialLogs = listOf(
-            BattleLog(
-                sender = "情シス室端末",
-                message = "=== [内線着信] ${stage.title} ===",
-                type = LogType.ALERT
-            ),
-            BattleLog(
-                sender = "社内通報",
+        // 設備投資（アップグレード）の効果反映
+        val maxHp = if (progress.hasCdn) 130 else 100
+        val maxShield = if (progress.hasUtm) 130 else 100
+        val initialShield = if (progress.hasUtm) 50 else 20
+        val actionsPerTurn = if (progress.hasExtraStaff) 2 else 1
+
+        val initialMessages = mutableListOf<ChatMessage>()
+
+        // 1. 内線着信
+        initialMessages.add(
+            ChatMessage(
+                senderType = ChatSenderType.PHONE,
+                speaker = "内線着信 (社内通報)",
                 message = threat.storyIntro,
-                type = LogType.WARNING
-            ),
-            BattleLog(
-                sender = "アプセトネデブ解析",
-                message = "敵は【${threat.layer.code}: ${threat.layer.japaneseLabel}】から侵入中！",
-                type = LogType.CRITICAL
-            ),
-            BattleLog(
-                sender = "防御の指針",
-                message = "迎撃ヒント: ${threat.weaknessHint}",
-                type = LogType.INFO
-            ),
-            BattleLog(
-                sender = "攻撃兆候",
+                timestamp = "17:00",
+                isImportant = true
+            )
+        )
+
+        // 2. システム監視アラート
+        initialMessages.add(
+            ChatMessage(
+                senderType = ChatSenderType.ALERT,
+                speaker = "SIEM監視コンソール",
+                message = "【侵入検知】${threat.name} [${threat.codeName}] の攻撃パケットを捕捉！",
+                timestamp = "17:01"
+            )
+        )
+
+        // 3. 情シスAIの分析メッセージ
+        if (progress.hasAiUpgrade) {
+            initialMessages.add(
+                ChatMessage(
+                    senderType = ChatSenderType.AI,
+                    speaker = "情シスAI ヘルプデスク君v2.0",
+                    message = "💡【AI高精度解析】この攻撃はアプセトネデブの『${threat.layer.shortName}』に直結しています！下部操作パネルから『${threat.layer.code}』を選んでピンポイント迎撃してください！",
+                    timestamp = "17:01",
+                    isImportant = true
+                )
+            )
+        } else {
+            initialMessages.add(
+                ChatMessage(
+                    senderType = ChatSenderType.AI,
+                    speaker = "情シスAI ヘルプデスク君",
+                    message = "💡 迎撃ヒント: ${threat.weaknessHint}",
+                    timestamp = "17:01"
+                )
+            )
+        }
+
+        // 4. 敵の第1撃予告
+        initialMessages.add(
+            ChatMessage(
+                senderType = ChatSenderType.ALERT,
+                speaker = "攻撃兆候モニタ",
                 message = "敵の次の一手: ${firstAttack.warningMessage}",
-                type = LogType.WARNING
+                timestamp = "17:02"
             )
         )
 
         return BattleState(
-            serverHp = 100,
-            maxServerHp = 100,
-            shield = 20,
-            maxShield = 100,
-            ap = 4,
-            maxAp = 5,
+            serverHp = maxHp,
+            maxServerHp = maxHp,
+            shield = initialShield,
+            maxShield = maxShield,
+            turn = 1,
+            remainingActions = actionsPerTurn,
+            maxActionsPerTurn = actionsPerTurn,
             threat = threat,
             nextAttackIndex = 0,
-            turn = 1,
             isThreatStunned = false,
             businessImpact = 0,
-            latestComplaint = null,
-            complaintSpeaker = null,
             isOverkillUsed = false,
             phase = BattlePhase.IN_BATTLE,
-            logs = initialLogs,
-            lastEducationalMessage = null
+            messages = initialMessages,
+            selectedLayer = null,
+            isOverkillMenuOpen = false,
+            remainingTimeSeconds = stage.timeLimitSeconds
         )
     }
+
+    // === 2ステップ選択UI操作 ===
+
+    fun selectLayer(layer: OsiLayer) {
+        _battleState.update {
+            it.copy(
+                selectedLayer = layer,
+                isOverkillMenuOpen = false
+            )
+        }
+    }
+
+    fun openOverkillMenu() {
+        _battleState.update {
+            it.copy(
+                selectedLayer = null,
+                isOverkillMenuOpen = true
+            )
+        }
+    }
+
+    fun clearLayerSelection() {
+        _battleState.update {
+            it.copy(
+                selectedLayer = null,
+                isOverkillMenuOpen = false
+            )
+        }
+    }
+
+    // === 防御アクション実行 ===
 
     fun executeAction(action: DefenseAction) {
         val currentState = _battleState.value
         if (currentState.phase != BattlePhase.IN_BATTLE) return
+        if (currentState.remainingActions <= 0) return
 
-        if (currentState.ap < action.apCost) {
-            addLog("情シス端末", "AP（PCメモリリソース）不足！コマンド実行不可 (必要AP: ${action.apCost}, 現在AP: ${currentState.ap})", LogType.WARNING)
-            return
-        }
-
-        // 過剰防衛の判定
-        if (action.isOverkill) {
-            val newLogs = mutableListOf<BattleLog>()
-            newLogs.add(
-                BattleLog(
-                    sender = "緊急遮断コマンド",
-                    message = "!!! ${action.name} を強行実行 !!!",
-                    type = LogType.CRITICAL
-                )
-            )
-            newLogs.add(
-                BattleLog(
-                    sender = "社内大炎上",
-                    message = action.complaintOnUse ?: "全社業務が強制停止！社内から怒号の内線が殺到！",
-                    type = LogType.ALERT
-                )
-            )
-            newLogs.add(
-                BattleLog(
-                    sender = "インシデント判定",
-                    message = "敵の通信は遮断できたが、業務停止で始末書確定！（評価C・ボーナスカット）",
-                    type = LogType.WARNING
-                )
-            )
-
-            _battleState.update {
-                it.copy(
-                    ap = 0,
-                    threat = it.threat.copyWithHp(0),
-                    businessImpact = 100,
-                    isOverkillUsed = true,
-                    latestComplaint = action.complaintOnUse,
-                    complaintSpeaker = "営業部・経理部・役員一同",
-                    phase = BattlePhase.VICTORY,
-                    logs = it.logs + newLogs,
-                    lastEducationalMessage = "【過剰防衛による強制クリア】\n" + action.securityConcept
-                )
-            }
-            return
-        }
-
-        val isCritical = (currentState.threat.criticalWeakness == action.id)
-        val calculatedDamage = if (isCritical) {
-            (action.baseDamage * 1.6).toInt()
-        } else {
-            action.baseDamage
-        }
-
-        val newAp = currentState.ap - action.apCost
-        val newShield = (currentState.shield + action.baseShield).coerceAtMost(currentState.maxShield)
-        val newHp = (currentState.serverHp + action.healAmount).coerceAtMost(currentState.maxServerHp)
-        val newThreatHp = (currentState.threat.currentHp - calculatedDamage).coerceAtLeast(0)
-        val updatedThreat = currentState.threat.copyWithHp(newThreatHp)
-        val newImpact = (currentState.businessImpact + action.businessImpact).coerceAtMost(100)
-
-        val newLogs = mutableListOf<BattleLog>()
-        newLogs.add(
-            BattleLog(
-                sender = "情シス実行",
-                message = "> ${action.commandCode} [${action.name}]",
-                type = LogType.INFO
-            )
+        // 実行メッセージ追加
+        addChatMessage(
+            ChatSenderType.ACTION,
+            "情シス操作実行",
+            "▶ [${action.name}] を実行！\n$ ${action.commandCode}"
         )
 
-        if (action.healAmount > 0) {
-            newLogs.add(
-                BattleLog(
-                    sender = "バックアップ",
-                    message = "オフライン磁気テープからサーバー健全性を +${action.healAmount} 復旧！ (現在HP: $newHp)",
-                    type = LogType.SUCCESS
-                )
-            )
-        }
-
-        var isStunned = currentState.isThreatStunned
-        var eduMessage: String? = null
-
-        if (isCritical) {
-            isStunned = true
-            eduMessage = "【アプセトネデブ適正防衛 成功！】\n${action.securityConcept}"
-            newLogs.add(
-                BattleLog(
-                    sender = "適正層防衛",
-                    message = "★ 層の弱点にズバリ的中！ ${calculatedDamage}ダメージを与え、敵の攻撃を遮断＆スタン！業務影響ゼロ！",
-                    type = LogType.CRITICAL
-                )
-            )
-        } else if (action.baseDamage > 0) {
-            newLogs.add(
-                BattleLog(
-                    sender = "対抗措置",
-                    message = "防御パケット送出: 敵HPを $calculatedDamage 削ったが、層が違うため完全には止められない！",
-                    type = LogType.WARNING
-                )
-            )
-        }
-
-        // 敵HP 0 で勝利
-        if (newThreatHp <= 0) {
-            newLogs.add(
-                BattleLog(
-                    sender = "防衛完了",
-                    message = "社内インシデントの封じ込めに成功！自社サーバを防衛した！",
-                    type = LogType.CRITICAL
-                )
+        // 過剰防衛の場合
+        if (action.isOverkill) {
+            val complaint = action.complaintOnUse ?: "社員「おい！仕事にならないぞ！」"
+            addChatMessage(
+                ChatSenderType.COMPLAINT,
+                "怒りの内線殺到",
+                complaint,
+                isImportant = true
             )
 
-            _battleState.update {
-                it.copy(
-                    ap = newAp,
-                    shield = newShield,
-                    serverHp = newHp,
-                    threat = updatedThreat,
-                    businessImpact = newImpact,
+            _battleState.update { state ->
+                state.copy(
+                    threat = state.threat.copyWithHp(0),
+                    businessImpact = 100,
+                    isOverkillUsed = true,
                     phase = BattlePhase.VICTORY,
-                    logs = it.logs + newLogs,
-                    lastEducationalMessage = eduMessage ?: updatedThreat.educationalDetail
+                    remainingActions = 0,
+                    selectedLayer = null,
+                    isOverkillMenuOpen = false
                 )
             }
+            onVictory()
             return
         }
 
-        _battleState.update {
-            it.copy(
-                ap = newAp,
-                shield = newShield,
-                serverHp = newHp,
-                threat = updatedThreat,
-                isThreatStunned = isStunned,
-                businessImpact = newImpact,
-                logs = it.logs + newLogs,
-                lastEducationalMessage = eduMessage ?: it.lastEducationalMessage
+        // 通常または弱点攻撃
+        val isCriticalWeakness = (action.id == currentState.threat.criticalWeakness) || (action.layer == currentState.threat.layer && action.baseDamage > 0)
+        var actualDamage = action.baseDamage
+        var newStun = currentState.isThreatStunned
+
+        if (isCriticalWeakness && action.baseDamage > 0) {
+            actualDamage = (actualDamage * 1.6).toInt()
+            newStun = true
+            addChatMessage(
+                ChatSenderType.AI,
+                "アプセトネデブ解析",
+                "🎯 適正層（${action.layer.shortName}）へのピンポイント対策成功！大打撃を与えて敵がスタンした！",
+                isImportant = true
+            )
+        } else if (action.baseDamage > 0) {
+            addChatMessage(
+                ChatSenderType.ACTION,
+                "コマンド結果",
+                "敵に通常対処を実行（${actualDamage}ダメージ）。"
             )
         }
+
+        // シールド・HP回復
+        var newShield = (currentState.shield + action.baseShield).coerceAtMost(currentState.maxShield)
+        var newHp = (currentState.serverHp + action.healAmount).coerceAtMost(currentState.maxServerHp)
+        if (action.baseShield > 0) {
+            addChatMessage(ChatSenderType.ACTION, "防壁展開", "シールドを +${action.baseShield} 展開した！（現在: $newShield）")
+        }
+        if (action.healAmount > 0) {
+            addChatMessage(ChatSenderType.ACTION, "整合性復旧", "オフライン磁気テープからサーバを +${action.healAmount} 修復！（現在: $newHp）")
+        }
+
+        val newThreatHp = (currentState.threat.currentHp - actualDamage).coerceAtLeast(0)
+        val updatedThreat = currentState.threat.copyWithHp(newThreatHp)
+
+        val nextRemainingActions = currentState.remainingActions - 1
+
+        _battleState.update { state ->
+            state.copy(
+                threat = updatedThreat,
+                serverHp = newHp,
+                shield = newShield,
+                isThreatStunned = newStun,
+                remainingActions = nextRemainingActions,
+                selectedLayer = null,
+                isOverkillMenuOpen = false
+            )
+        }
+
+        // 敵撃破判定
+        if (newThreatHp <= 0) {
+            addChatMessage(
+                ChatSenderType.AI,
+                "情シスAI",
+                "🎉 敵インシデントの完全沈静化を確認！防衛ミッション完了！",
+                isImportant = true
+            )
+            _battleState.update { it.copy(phase = BattlePhase.VICTORY) }
+            onVictory()
+            return
+        }
+
+        // 残り手数が0になったら自動でターン終了処理へ
+        if (nextRemainingActions <= 0) {
+            endTurn()
+        }
     }
+
+    // === ターン終了 & 敵の反撃フェーズ ===
 
     fun endTurn() {
         val currentState = _battleState.value
         if (currentState.phase != BattlePhase.IN_BATTLE) return
 
-        val newLogs = mutableListOf<BattleLog>()
-        newLogs.add(
-            BattleLog(
-                sender = "情シス日誌",
-                message = "--- 第${currentState.turn}ターン 終了 ---",
-                type = LogType.INFO
+        val attack = currentState.currentAttack
+
+        // 敵がスタンしている場合
+        if (currentState.isThreatStunned) {
+            addChatMessage(
+                ChatSenderType.ALERT,
+                "敵状態モニタ",
+                "敵はスタン中のため、反撃不能！（スタン解除）"
             )
+
+            // UTMのシールド自動回復
+            var nextShield = currentState.shield
+            if (_gameProgress.value.hasUtm) {
+                nextShield = (nextShield + 10).coerceAtMost(currentState.maxShield)
+                addChatMessage(ChatSenderType.ACTION, "UTM自動修復", "🛡️ 次世代UTMによりシールドが自動で +10 回復！")
+            }
+
+            val nextAttackIdx = (currentState.nextAttackIndex + 1) % currentState.threat.attackList.size
+            val nextAttack = currentState.threat.attackList[nextAttackIdx]
+
+            _battleState.update { state ->
+                state.copy(
+                    turn = state.turn + 1,
+                    remainingActions = state.maxActionsPerTurn,
+                    isThreatStunned = false,
+                    shield = nextShield,
+                    nextAttackIndex = nextAttackIdx,
+                    selectedLayer = null,
+                    isOverkillMenuOpen = false
+                )
+            }
+
+            addChatMessage(
+                ChatSenderType.ALERT,
+                "攻撃兆候モニタ",
+                "次ターンの予兆: ${nextAttack.warningMessage}"
+            )
+            return
+        }
+
+        // 敵の反撃実行
+        addChatMessage(
+            ChatSenderType.ALERT,
+            "敵の反撃開始",
+            "⚡ 敵の攻撃: 【${attack.name}】が直撃！\n${attack.executedMessage}",
+            isImportant = true
         )
 
-        var newServerHp = currentState.serverHp
-        var newShield = currentState.shield
+        // 被弾した攻撃を図鑑に登録！
+        recordIncidentToLogBook(attack, currentState.threat.name)
 
-        if (currentState.isThreatStunned) {
-            newLogs.add(
-                BattleLog(
-                    sender = "脅威監視",
-                    message = "敵は適正防衛により通信遮断中！攻撃をスキップした！",
-                    type = LogType.SUCCESS
-                )
-            )
+        var damage = attack.damage
+        // CDN効果: L3/L4/L7のダメージを常時-10軽減
+        if (_gameProgress.value.hasCdn && (attack.layer == OsiLayer.L3_NETWORK || attack.layer == OsiLayer.L4_TRANSPORT || attack.layer == OsiLayer.L7_APPLICATION)) {
+            damage = (damage - 10).coerceAtLeast(5)
+            addChatMessage(ChatSenderType.ACTION, "CDN防御網", "🌐 全社CDNが分散キャッシュにより敵の負荷を -10 軽減！")
+        }
+
+        var currentShield = currentState.shield
+        var currentHp = currentState.serverHp
+
+        if (attack.piercesShield) {
+            currentHp -= damage
+            addChatMessage(ChatSenderType.ALERT, "シールド貫通", "⚠️ シールドを無視してサーバ本体に直接 $damage ダメージ！")
         } else {
-            val attack = currentState.currentAttack
-            newLogs.add(
-                BattleLog(
-                    sender = "敵攻撃直撃",
-                    message = "敵の攻撃: ${attack.name}！ ${attack.executedMessage}",
-                    type = LogType.ALERT
-                )
-            )
-
-            if (attack.piercesShield) {
-                newServerHp = (newServerHp - attack.damage).coerceAtLeast(0)
+            if (currentShield >= damage) {
+                currentShield -= damage
+                addChatMessage(ChatSenderType.ALERT, "シールド防衛", "シールドが $damage ダメージを吸収！（残シールド: $currentShield）")
             } else {
-                val remaining = attack.damage - newShield
-                if (remaining > 0) {
-                    newShield = 0
-                    newServerHp = (newServerHp - remaining).coerceAtLeast(0)
-                } else {
-                    newShield = (newShield - attack.damage).coerceAtLeast(0)
-                }
+                val remainingDamage = damage - currentShield
+                currentShield = 0
+                currentHp -= remainingDamage
+                addChatMessage(ChatSenderType.ALERT, "シールド損壊", "シールド破壊！サーバ本体に $remainingDamage ダメージ！（残HP: $currentHp）")
             }
         }
 
-        // 敗北判定
-        if (newServerHp <= 0) {
-            newLogs.add(
-                BattleLog(
-                    sender = "重大インシデント",
-                    message = "基幹サーバが停止。全社データ喪失・システムダウン...",
-                    type = LogType.CRITICAL
-                )
-            )
+        // UTMのシールド自動回復
+        if (_gameProgress.value.hasUtm && currentHp > 0) {
+            currentShield = (currentShield + 10).coerceAtMost(currentState.maxShield)
+            addChatMessage(ChatSenderType.ACTION, "UTM自動修復", "🛡️ 次世代UTMによりシールドが自動で +10 回復！")
+        }
 
-            _battleState.update {
-                it.copy(
+        if (currentHp <= 0) {
+            currentHp = 0
+            addChatMessage(
+                ChatSenderType.ALERT,
+                "全社サーバ停止",
+                "💀 サーバ耐久力がゼロになりました。社内業務完全停止、防衛作戦失敗…",
+                isImportant = true
+            )
+            _battleState.update { state ->
+                state.copy(
                     serverHp = 0,
-                    shield = newShield,
+                    shield = currentShield,
                     phase = BattlePhase.DEFEAT,
-                    logs = it.logs + newLogs
+                    selectedLayer = null,
+                    isOverkillMenuOpen = false
                 )
             }
             return
         }
 
-        val nextTurnNumber = currentState.turn + 1
-        val nextAttackIdx = currentState.nextAttackIndex + 1
-        val nextAttack = currentState.threat.attackList[nextAttackIdx % currentState.threat.attackList.size]
+        val nextAttackIdx = (currentState.nextAttackIndex + 1) % currentState.threat.attackList.size
+        val nextAttack = currentState.threat.attackList[nextAttackIdx]
 
-        newLogs.add(
-            BattleLog(
-                sender = "リソース回復",
-                message = "メモリリソース(AP)が回復 (AP: ${currentState.maxAp})",
-                type = LogType.INFO
-            )
-        )
-        newLogs.add(
-            BattleLog(
-                sender = "攻撃兆候",
-                message = "【次回攻撃予測】${nextAttack.warningMessage}",
-                type = LogType.WARNING
-            )
-        )
-
-        _battleState.update {
-            it.copy(
-                serverHp = newServerHp,
-                shield = newShield,
-                ap = it.maxAp,
-                turn = nextTurnNumber,
+        _battleState.update { state ->
+            state.copy(
+                serverHp = currentHp,
+                shield = currentShield,
+                turn = state.turn + 1,
+                remainingActions = state.maxActionsPerTurn,
                 nextAttackIndex = nextAttackIdx,
-                isThreatStunned = false,
-                logs = it.logs + newLogs
+                selectedLayer = null,
+                isOverkillMenuOpen = false
+            )
+        }
+
+        // 次の攻撃予告
+        addChatMessage(
+            ChatSenderType.ALERT,
+            "攻撃兆候モニタ",
+            "次ターンの予兆: ${nextAttack.warningMessage}"
+        )
+    }
+
+    // === 図鑑（インシデントログ）への自動登録 ===
+
+    private fun recordIncidentToLogBook(attack: ThreatAttack, threatName: String) {
+        val existing = _gameProgress.value.incidentLogBook.any { it.attackName == attack.name }
+        if (!existing) {
+            val entry = IncidentLogEntry(
+                attackName = attack.name,
+                threatName = threatName,
+                layer = attack.layer,
+                damage = attack.damage,
+                mechanism = attack.mechanism,
+                defensePrinciple = attack.defensePrinciple,
+                examTip = attack.examTip
+            )
+            _gameProgress.update { prog ->
+                prog.copy(incidentLogBook = prog.incidentLogBook + entry)
+            }
+            addChatMessage(
+                ChatSenderType.AI,
+                "インシデント図鑑更新",
+                "📋 新たな攻撃手口『${attack.name}』のデータをセキュリティ図鑑（ログ）に登録しました！"
             )
         }
     }
 
-    private fun addLog(sender: String, message: String, type: LogType) {
-        _battleState.update {
-            it.copy(
-                logs = it.logs + BattleLog(sender = sender, message = message, type = type)
+    // === 勝利時処理 (アンロック & 予算支給) ===
+
+    private fun onVictory() {
+        val stageId = _currentStageId.value
+        val state = _battleState.value
+        val rewardBudget = state.rewardBudgetAmount
+
+        _gameProgress.update { prog ->
+            val newCleared = prog.clearedStageIds + stageId
+            // 次の層のアンロック
+            val newUnlockedLayers = prog.unlockedLayers.toMutableSet()
+            // クリアしたステージに応じた層のアンロック追加
+            when (stageId) {
+                1 -> newUnlockedLayers.add(OsiLayer.L2_DATALINK)
+                2 -> newUnlockedLayers.add(OsiLayer.L3_NETWORK)
+                3 -> newUnlockedLayers.add(OsiLayer.L4_TRANSPORT)
+                4 -> newUnlockedLayers.add(OsiLayer.L5_SESSION)
+                5 -> newUnlockedLayers.add(OsiLayer.L6_PRESENTATION)
+                6 -> newUnlockedLayers.add(OsiLayer.L7_APPLICATION)
+                7 -> {
+                    // 全層開放
+                    newUnlockedLayers.addAll(OsiLayer.values())
+                }
+            }
+
+            prog.copy(
+                clearedStageIds = newCleared,
+                unlockedLayers = newUnlockedLayers,
+                departmentBudget = prog.departmentBudget + rewardBudget
             )
+        }
+    }
+
+    // === 部署設備投資（アップグレード購入） ===
+
+    fun purchaseUpgrade(upgrade: UpgradeType): Boolean {
+        val prog = _gameProgress.value
+        if (prog.purchasedUpgrades.contains(upgrade)) return false
+        if (prog.departmentBudget < upgrade.cost) return false
+
+        _gameProgress.update {
+            it.copy(
+                departmentBudget = it.departmentBudget - upgrade.cost,
+                purchasedUpgrades = it.purchasedUpgrades + upgrade
+            )
+        }
+        return true
+    }
+
+    private fun addChatMessage(
+        type: ChatSenderType,
+        speaker: String,
+        message: String,
+        isImportant: Boolean = false
+    ) {
+        _battleState.update { state ->
+            val newMsg = ChatMessage(
+                senderType = type,
+                speaker = speaker,
+                message = message,
+                isImportant = isImportant
+            )
+            state.copy(messages = state.messages + newMsg)
         }
     }
 }

@@ -3,116 +3,177 @@ package com.example.cyberdefender.ui.components
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.cyberdefender.model.Threat
 import com.example.cyberdefender.ui.theme.*
 
 /**
- * Windows XP タスクマネージャ風 サーバー健全度 & リソース監視パネル
+ * プレイ画面の最上部に配置するスリムなステータスダッシュボード
+ * （敵のHP・自社サーバHP・シールド・スタン状態を横並びで即座に把握可能）
  */
 @Composable
-fun ServerStatusPanel(
+fun BattleStatusBar(
+    threat: Threat,
     serverHp: Int,
-    maxHp: Int,
+    maxServerHp: Int,
     shield: Int,
     maxShield: Int,
-    ap: Int,
-    maxAp: Int,
-    businessImpact: Int,
+    isStunned: Boolean,
     modifier: Modifier = Modifier
 ) {
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .background(XpWindowBg)
-            .border(1.dp, XpBorderShadow)
-            .padding(6.dp),
-        verticalArrangement = Arrangement.spacedBy(4.dp)
+            .clip(RoundedCornerShape(3.dp))
+            .background(Color(0xFFEDE9D8))
+            .border(1.dp, Color(0xFF003C74), RoundedCornerShape(3.dp))
+            .padding(horizontal = 6.dp, vertical = 4.dp),
+        verticalArrangement = Arrangement.spacedBy(3.dp)
     ) {
-        // パネルヘッダー
+        // 上段: 敵情報 & 敵HP
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                modifier = Modifier.weight(1f, fill = false)
+            ) {
+                Text(
+                    text = "👾",
+                    fontSize = 12.sp
+                )
+                Text(
+                    text = "${threat.name} [${threat.layer.code}:L${threat.layer.layerNumber}]",
+                    color = Color(0xFF991B1B),
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold,
+                    fontFamily = PixelFontFamily,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                if (isStunned) {
+                    Box(
+                        modifier = Modifier
+                            .background(Color(0xFFF59E0B), RoundedCornerShape(2.dp))
+                            .padding(horizontal = 3.dp, vertical = 1.dp)
+                    ) {
+                        Text(
+                            text = "💫スタン中",
+                            color = Color.White,
+                            fontSize = 8.sp,
+                            fontWeight = FontWeight.Bold,
+                            fontFamily = PixelFontFamily
+                        )
+                    }
+                }
+            }
+
             Text(
-                text = "📊 自社基幹サーバ・リソース管理",
-                color = XpTextDark,
-                fontSize = 11.sp,
+                text = "HP: ${threat.currentHp}/${threat.maxHp}",
+                color = Color(0xFFB91C1C),
+                fontSize = 10.sp,
                 fontWeight = FontWeight.Bold,
-                fontFamily = FontFamily.SansSerif
+                fontFamily = PixelFontFamily
             )
-            // AP (メモリリソース)
+        }
+
+        // 敵HPバー
+        CompactProgressBar(
+            current = threat.currentHp,
+            max = threat.maxHp,
+            barColor = Color(0xFFDC2626)
+        )
+
+        // 下段: 自社サーバHP & シールド
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(4.dp)
             ) {
                 Text(
-                    text = "使用可能メモリ(AP):",
-                    color = XpTextDark,
+                    text = "💻 自社サーバHP:",
+                    color = Color(0xFF1E3A8A),
                     fontSize = 10.sp,
-                    fontFamily = FontFamily.SansSerif
+                    fontWeight = FontWeight.Bold,
+                    fontFamily = PixelFontFamily
                 )
                 Text(
-                    text = "$ap / $maxAp",
-                    color = if (ap > 1) XpStartGreen else XpAlertRed,
-                    fontSize = 11.sp,
+                    text = "$serverHp/$maxServerHp",
+                    color = if (serverHp > 30) Color(0xFF15803D) else Color(0xFFDC2626),
+                    fontSize = 10.sp,
                     fontWeight = FontWeight.Bold,
-                    fontFamily = FontFamily.Monospace
+                    fontFamily = PixelFontFamily
                 )
             }
-        }
 
-        // サーバーHP (緑のXPブロックプログレスバー)
-        Column {
             Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(4.dp)
             ) {
                 Text(
-                    text = "サーバ健全性 (Integrity HP):",
-                    fontSize = 10.sp,
-                    color = XpTextDark,
-                    fontFamily = FontFamily.SansSerif
-                )
-                Text(
-                    text = "$serverHp / $maxHp",
+                    text = "🛡️シールド:",
+                    color = Color(0xFF1D4ED8),
                     fontSize = 10.sp,
                     fontWeight = FontWeight.Bold,
-                    color = if (serverHp > 40) XpStartGreen else XpAlertRed,
-                    fontFamily = FontFamily.Monospace
+                    fontFamily = PixelFontFamily
+                )
+                Text(
+                    text = "$shield/$maxShield",
+                    color = Color(0xFF2563EB),
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Bold,
+                    fontFamily = PixelFontFamily
                 )
             }
-            XpBlockProgressBar(current = serverHp, max = maxHp)
         }
 
-        // 業務影響度メーター（過剰防衛すると急上昇！）
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(
-                text = "社内業務影響度 (クレーム指数):",
-                fontSize = 10.sp,
-                color = if (businessImpact > 30) XpAlertRed else XpTextMuted,
-                fontWeight = if (businessImpact > 30) FontWeight.Bold else FontWeight.Normal,
-                fontFamily = FontFamily.SansSerif
-            )
-            Text(
-                text = "$businessImpact% ${if (businessImpact >= 80) "【大炎上中】" else if (businessImpact > 0) "【小言あり】" else "【平穏無事】"}",
-                fontSize = 10.sp,
-                color = if (businessImpact > 30) XpAlertRed else XpStartGreen,
-                fontWeight = FontWeight.Bold,
-                fontFamily = FontFamily.Monospace
-            )
-        }
+        // 自社HPバー
+        CompactProgressBar(
+            current = serverHp,
+            max = maxServerHp,
+            barColor = if (serverHp > 30) Color(0xFF16A34A) else Color(0xFFDC2626)
+        )
+    }
+}
+
+@Composable
+fun CompactProgressBar(
+    current: Int,
+    max: Int,
+    barColor: Color,
+    modifier: Modifier = Modifier
+) {
+    val fraction = (current.toFloat() / max.coerceAtLeast(1).toFloat()).coerceIn(0f, 1f)
+
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .height(6.dp)
+            .background(Color(0xFFCBD5E1), RoundedCornerShape(2.dp))
+            .border(1.dp, Color(0xFF64748B), RoundedCornerShape(2.dp))
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxHeight()
+                .fillMaxWidth(fraction)
+                .background(barColor, RoundedCornerShape(2.dp))
+        )
     }
 }

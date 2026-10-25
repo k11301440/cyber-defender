@@ -1,9 +1,6 @@
 package com.example.cyberdefender
 
-import com.example.cyberdefender.model.ActionId
-import com.example.cyberdefender.model.DefenseActionCatalog
-import com.example.cyberdefender.model.OsiLayer
-import com.example.cyberdefender.model.ThreatType
+import com.example.cyberdefender.model.*
 import com.example.cyberdefender.viewmodel.BattleViewModel
 import org.junit.Assert.*
 import org.junit.Before
@@ -24,7 +21,7 @@ class BattleViewModelTest {
         assertEquals(ThreatType.L1_USB_WORM, state.threat.type)
         assertEquals(OsiLayer.L1_PHYSICAL, state.threat.layer)
         assertEquals(100, state.serverHp)
-        assertEquals(4, state.ap)
+        assertEquals(1, state.remainingActions)
         assertEquals(0, state.businessImpact)
         assertFalse(state.isThreatStunned)
     }
@@ -56,5 +53,17 @@ class BattleViewModelTest {
         assertEquals("業務影響度は100%になること", 100, state.businessImpact)
         assertTrue("過剰防衛フラグが立つこと", state.isOverkillUsed)
         assertTrue("評価ランクがCになること", state.resultRank.startsWith("C"))
+    }
+
+    @Test
+    fun purchaseUpgradeAndGainBenefits() {
+        // 初期予算10万円 -> 勝利で予算加算
+        val overkillAction = DefenseActionCatalog.allActions.first { it.id == ActionId.OVERKILL_CUT_MAIN_CABLE }
+        viewModel.executeAction(overkillAction)
+
+        // 過剰防衛クリアでも1万円付与される
+        val progressAfterWin = viewModel.gameProgress.value
+        assertTrue("ステージ1がクリア済みになること", progressAfterWin.clearedStageIds.contains(1))
+        assertTrue("L2データリンク層がアンロックされること", progressAfterWin.unlockedLayers.contains(OsiLayer.L2_DATALINK))
     }
 }

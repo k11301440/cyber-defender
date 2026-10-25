@@ -11,3 +11,6 @@ data object BattleKey : NavKey
 
 @Serializable
 data object KnowledgeKey : NavKey
+
+@Serializable
+data object UpgradeKey : NavKey

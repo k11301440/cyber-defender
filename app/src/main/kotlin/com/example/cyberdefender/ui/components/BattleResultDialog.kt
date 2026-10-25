@@ -10,7 +10,6 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -19,7 +18,7 @@ import com.example.cyberdefender.model.BattleState
 import com.example.cyberdefender.ui.theme.*
 
 /**
- * Windows XP風 バトル終了（評価・クレーム・ボーナス算定）ダイアログ
+ * Windows XP風 バトル終了（評価・クレーム・部署予算獲得）ダイアログ
  */
 @Composable
 fun BattleResultDialog(
@@ -27,6 +26,7 @@ fun BattleResultDialog(
     onRestart: () -> Unit,
     onNextStage: () -> Unit,
     onBackToStages: () -> Unit,
+    onOpenUpgrades: () -> Unit,
     hasNextStage: Boolean
 ) {
     if (state.phase == BattlePhase.IN_BATTLE) return
@@ -42,7 +42,8 @@ fun BattleResultDialog(
                 text = if (isVictory) "🏁 防衛作戦終了 - 業務査定結果" else "❌ サーバダウン - 重大インシデント発生",
                 color = if (isVictory) Color(0xFF003399) else XpAlertRed,
                 fontSize = 13.sp,
-                fontWeight = FontWeight.Bold
+                fontWeight = FontWeight.Bold,
+                fontFamily = PixelFontFamily
             )
         },
         text = {
@@ -52,7 +53,7 @@ fun BattleResultDialog(
                     .verticalScroll(scrollState),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                // 査定結果ランク & ボーナス表示
+                // 査定結果ランク & 予算支給
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -60,30 +61,31 @@ fun BattleResultDialog(
                         .border(1.dp, XpBorderDark)
                         .padding(8.dp)
                 ) {
-                    Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
-                            Text("情シス評価ランク:", fontSize = 11.sp, color = XpTextDark)
+                            Text("情シス評価ランク:", fontSize = 11.sp, color = XpTextDark, fontFamily = PixelFontFamily)
                             Text(
                                 text = state.resultRank,
-                                fontSize = 12.sp,
+                                fontSize = 11.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = if (state.resultRank.startsWith("S") || state.resultRank.startsWith("A")) XpStartGreen else XpAlertRed
+                                color = if (state.resultRank.startsWith("S") || state.resultRank.startsWith("A")) XpStartGreen else XpAlertRed,
+                                fontFamily = PixelFontFamily
                             )
                         }
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
-                            Text("今期の想定賞与:", fontSize = 11.sp, color = XpTextDark)
+                            Text("獲得部署予算:", fontSize = 11.sp, color = XpTextDark, fontFamily = PixelFontFamily)
                             Text(
-                                text = state.bonusAmountText,
-                                fontSize = 11.sp,
+                                text = "+ ¥${state.rewardBudgetAmount.toString().reversed().chunked(3).joinToString(",").reversed()}",
+                                fontSize = 12.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = Color(0xFF003399),
-                                fontFamily = FontFamily.Monospace
+                                fontFamily = PixelFontFamily
                             )
                         }
                     }
@@ -93,13 +95,13 @@ fun BattleResultDialog(
                 if (state.isOverkillUsed) {
                     XpBalloonNotification(
                         speaker = "営業部長 & 経理部長",
-                        message = state.latestComplaint ?: "おい情シス！ネット切る奴があるか！契約も振込もパーだぞ！始末書書け！",
+                        message = "「おい情シス！回線引っこ抜く奴があるか！契約も振込もパーだぞ！始末書書け！」",
                         isAngry = true
                     )
                 } else if (isVictory) {
                     XpBalloonNotification(
                         speaker = "社長 & 総務一同",
-                        message = "業務を一切止めずに見事なピンポイント防衛だったな！さすが我が社の情シスだ、頼りにしてるよ！",
+                        message = "「業務を一切止めずに見事なピンポイント防衛だったな！獲得した予算で部署のセキュリティ設備を増強してくれ！」",
                         isAngry = false
                     )
                 }
@@ -114,26 +116,33 @@ fun BattleResultDialog(
                 ) {
                     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                         Text(
-                            text = "【アプセトネデブ解説ノート】",
+                            text = "💡【アプセトネデブ防衛ノウハウ】",
                             fontSize = 11.sp,
                             fontWeight = FontWeight.Bold,
-                            color = Color(0xFF003399)
+                            color = Color(0xFF003399),
+                            fontFamily = PixelFontFamily
                         )
                         Text(
-                            text = state.lastEducationalMessage ?: state.threat.educationalDetail,
+                            text = state.threat.educationalDetail,
                             fontSize = 10.sp,
                             color = XpTextDark,
-                            lineHeight = 14.sp
+                            lineHeight = 14.sp,
+                            fontFamily = PixelFontFamily
                         )
                     }
                 }
             }
         },
         confirmButton = {
-            if (isVictory && hasNextStage) {
-                XpButton(text = "次の話へ進む ⏩", onClick = onNextStage, isPrimary = true)
-            } else {
-                XpButton(text = "もう一度防衛する 🔄", onClick = onRestart, isPrimary = true)
+            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                if (isVictory && hasNextStage) {
+                    XpButton(text = "次の話へ進む ⏩", onClick = onNextStage, isPrimary = true)
+                } else {
+                    XpButton(text = "もう一度防衛 🔄", onClick = onRestart, isPrimary = true)
+                }
+                if (isVictory) {
+                    XpButton(text = "設備投資へ 🏢", onClick = onOpenUpgrades)
+                }
             }
         },
         dismissButton = {

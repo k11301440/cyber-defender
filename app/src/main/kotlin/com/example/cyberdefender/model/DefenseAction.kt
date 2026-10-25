@@ -1,26 +1,52 @@
 package com.example.cyberdefender.model
 
-enum class OsiLayer(val code: String, val layerNumber: Int, val japaneseLabel: String) {
-    L7_APPLICATION("ア", 7, "アプリケーション層"),
-    L6_PRESENTATION("プ", 6, "プレゼンテーション層"),
-    L5_SESSION("セ", 5, "セッション層"),
-    L4_TRANSPORT("ト", 4, "トランスポート層"),
-    L3_NETWORK("ネ", 3, "ネットワーク層"),
-    L2_DATALINK("デ", 2, "データリンク層"),
-    L1_PHYSICAL("ブ", 1, "物理層")
+enum class OsiLayer(
+    val code: String,
+    val layerNumber: Int,
+    val japaneseLabel: String,
+    val shortName: String
+) {
+    L7_APPLICATION("ア", 7, "アプリケーション層", "ア: L7 アプリ"),
+    L6_PRESENTATION("プ", 6, "プレゼンテーション層", "プ: L6 プレゼン"),
+    L5_SESSION("セ", 5, "セッション層", "セ: L5 セッション"),
+    L4_TRANSPORT("ト", 4, "トランスポート層", "ト: L4 トランス"),
+    L3_NETWORK("ネ", 3, "ネットワーク層", "ネ: L3 ネット"),
+    L2_DATALINK("デ", 2, "データリンク層", "デ: L2 リンク"),
+    L1_PHYSICAL("ブ", 1, "物理層", "ブ: L1 物理")
 }
 
 enum class ActionId {
-    L7_WAF_PARAM_BIND,        // L7(ア): WAF & 入力プレースホルダー
-    L6_TLS_ENCODE_FIX,        // L6(プ): 暗号化通信 & 文字コード検証
-    L5_SESSION_SECURE_COOKIE, // L5(セ): セッション管理 & HttpOnly Cookie
-    L4_SYN_COOKIE_PORT_CLOSE, // L4(ト): SYN Cookie & ポートフィルタ
-    L3_IP_FILTERING,          // L3(ネ): ルータIPスプーフィング破棄
-    L2_ARP_SNOOPING,          // L2(デ): スイッチARPスヌーピング
-    L1_LOCK_SERVER_ROOM,      // L1(ブ): サーバルーム施錠 & USB無効化
-    OVERKILL_CUT_MAIN_CABLE,  // 【過剰防衛】全社光回線引っこ抜き
-    OVERKILL_FORCE_SHUTDOWN,  // 【過剰防衛】全社PC強制電源断
-    RESTORE_FROM_TAPE         // L1/L7: 磁気テープバックアップから復元 (HP回復)
+    // L7 (ア)
+    L7_WAF_PARAM_BIND,
+    L7_INPUT_SANITIZE,
+
+    // L6 (プ)
+    L6_TLS_ENCODE_FIX,
+    L6_CIPHER_RESTRICT,
+
+    // L5 (セ)
+    L5_SESSION_SECURE_COOKIE,
+    L5_REGENERATE_SESSION_ID,
+
+    // L4 (ト)
+    L4_SYN_COOKIE,
+    L4_RATE_LIMIT,
+
+    // L3 (ネ)
+    L3_BLOCK_ICMP_ROUTER,
+    L3_INGRESS_FILTER,
+
+    // L2 (デ)
+    L2_ARP_SNOOPING,
+    L2_PORT_SECURITY,
+
+    // L1 (ブ)
+    L1_LOCK_SERVER_ROOM,
+    RESTORE_FROM_TAPE,
+
+    // 最終手段 (過剰防衛)
+    OVERKILL_CUT_MAIN_CABLE,
+    OVERKILL_FORCE_SHUTDOWN
 }
 
 data class DefenseAction(
@@ -28,7 +54,7 @@ data class DefenseAction(
     val name: String,
     val commandCode: String,
     val layer: OsiLayer,
-    val apCost: Int,
+    val apCost: Int = 1,
     val baseDamage: Int = 0,
     val baseShield: Int = 0,
     val healAmount: Int = 0,
@@ -41,105 +67,186 @@ data class DefenseAction(
 
 object DefenseActionCatalog {
     val allActions = listOf(
+        // === L7 アプリケーション層 (ア) ===
         DefenseAction(
             id = ActionId.L7_WAF_PARAM_BIND,
-            name = "[ア] WAF適用 & 入力バインド",
+            name = "WAF適用 & 入力プレースホルダー",
             commandCode = "waf --block-sqli --rule=param_bind",
             layer = OsiLayer.L7_APPLICATION,
-            apCost = 2,
-            baseDamage = 45,
+            apCost = 1,
+            baseDamage = 50,
             businessImpact = 0,
-            description = "L7(ア)対策。入力値をプレースホルダー化し、SQL構文改ざんやXSSを無効化。",
-            securityConcept = "【ア: アプリケーション層】HTTPやSQLなどユーザーと直結する層。動的クエリではなく静的バインドを用いるのがWeb防御の鉄則。"
+            description = "入力値をSQL文から分離し、SQLインジェクションや不正クエリを無害化。",
+            securityConcept = "【ア: アプリケーション層】HTTPやSQLなどを扱う最上位層。静的バインド（プレースホルダー）の徹底が根本治療。"
         ),
+        DefenseAction(
+            id = ActionId.L7_INPUT_SANITIZE,
+            name = "Web入力サニタイズ & 特殊文字除去",
+            commandCode = "sanitizer.filterHtmlSpecialChars()",
+            layer = OsiLayer.L7_APPLICATION,
+            apCost = 1,
+            baseShield = 30,
+            businessImpact = 0,
+            description = "危険なタグやクォート文字を無害化し、アプリ層のシールドを+30展開。",
+            securityConcept = "【ア: アプリケーション層】フォーム入力のバリデーションとエスケープ処理によりXSSやインジェクションを多層防護。"
+        ),
+
+        // === L6 プレゼンテーション層 (プ) ===
         DefenseAction(
             id = ActionId.L6_TLS_ENCODE_FIX,
-            name = "[プ] TLS暗号化 & 文字コード検証",
+            name = "TLS1.3強制 & UTF-8文字コード正規化",
             commandCode = "ssl_config --enforce-tls1.3 --sanitize-encoding",
             layer = OsiLayer.L6_PRESENTATION,
-            apCost = 2,
-            baseDamage = 45,
+            apCost = 1,
+            baseDamage = 50,
             businessImpact = 0,
-            description = "L6(プ)対策。通信データをTLSで暗号化し、文字コード偽装によるすり抜けを防止。",
-            securityConcept = "【プ: プレゼンテーション層】データの形式（暗号化、圧縮、文字コード）を扱う層。ダウングレード攻撃やエンコード偽装を検知・正規化する。"
+            description = "文字コード不一致を解消し、0x5Cすり抜けやダウングレード攻撃を迎撃。",
+            securityConcept = "【プ: プレゼンテーション層】データの表現形式（暗号化、文字コード、圧縮）を統一・管理する層。"
         ),
+        DefenseAction(
+            id = ActionId.L6_CIPHER_RESTRICT,
+            name = "脆弱暗号スイート無効化 & HSTS",
+            commandCode = "ssl.disableCiphers(RC4, 3DES, CBC)",
+            layer = OsiLayer.L6_PRESENTATION,
+            apCost = 1,
+            baseShield = 30,
+            businessImpact = 0,
+            description = "安全な暗号スイートのみを許可し、シールドを+30展開。",
+            securityConcept = "【プ: プレゼンテーション層】暗号化通信の強度を維持し、中間者による暗号解読を防止。"
+        ),
+
+        // === L5 セッション層 (セ) ===
         DefenseAction(
             id = ActionId.L5_SESSION_SECURE_COOKIE,
-            name = "[セ] セッションCookie厳格化",
+            name = "Cookie属性厳格化 (HttpOnly/Secure)",
             commandCode = "session.setFlags(HttpOnly, Secure, SameSite=Strict)",
             layer = OsiLayer.L5_SESSION,
-            apCost = 2,
-            baseDamage = 45,
+            apCost = 1,
+            baseDamage = 50,
             businessImpact = 0,
-            description = "L5(セ)対策。通信の開始から終了（対話）を管理し、セッション乗っ取りを阻止。",
-            securityConcept = "【セ: セッション層】通信プロセスの確立・維持・切断を管理。Cookieの不正読み取り防止や一定時間でのタイムアウトでセッションジャックを防ぐ。"
+            description = "Cookieへの不正アクセスを遮断し、セッションハイジャックを阻止。",
+            securityConcept = "【セ: セッション層】対話の確立・維持・終了を管理。Cookieの保護とセッション追跡防御が核心。"
         ),
         DefenseAction(
-            id = ActionId.L4_SYN_COOKIE_PORT_CLOSE,
-            name = "[ト] SYN Cookie & ポート閉塞",
+            id = ActionId.L5_REGENERATE_SESSION_ID,
+            name = "全セッションID強制再採番",
+            commandCode = "session.regenerateId(all=true)",
+            layer = OsiLayer.L5_SESSION,
+            apCost = 1,
+            baseShield = 30,
+            businessImpact = 0,
+            description = "既存のセッション識別子を一新し、不正乗っ取り通信を弾いてシールド+30。",
+            securityConcept = "【セ: セッション層】セッション固定化（Fixation）攻撃に対して、ID再発行が特効薬。"
+        ),
+
+        // === L4 トランスポート層 (ト) ===
+        DefenseAction(
+            id = ActionId.L4_SYN_COOKIE,
+            name = "SYN Cookie有効化 & 半開接続防御",
             commandCode = "sysctl -w net.ipv4.tcp_syncookies=1",
             layer = OsiLayer.L4_TRANSPORT,
-            apCost = 2,
-            baseDamage = 45,
+            apCost = 1,
+            baseDamage = 50,
             businessImpact = 0,
-            description = "L4(ト)対策。TCP接続リソース枯渇（SYN Flood）を防ぎ、不要ポートを遮断。",
-            securityConcept = "【ト: トランスポート層】TCP/UDPによる信頼性のあるデータ転送を担う層。SYN Floodには接続状態を保持しないSYN Cookie技術が極めて有効。"
+            description = "メモリを消費しないSYN Cookie技術でTCP SYNフラッド攻撃を無力化。",
+            securityConcept = "【ト: トランスポート層】TCP/UDPポートを管理。SYN CookieはTCPスタックのリソース枯渇を防ぐ決定打。"
         ),
         DefenseAction(
-            id = ActionId.L3_IP_FILTERING,
-            name = "[ネ] ルータ送信元IPフィルタリング",
+            id = ActionId.L4_RATE_LIMIT,
+            name = "TCP接続レートリミット & 不要ポート遮断",
+            commandCode = "iptables -A INPUT -p tcp --dport 80 -m limit --limit 50/s",
+            layer = OsiLayer.L4_TRANSPORT,
+            apCost = 1,
+            baseShield = 30,
+            businessImpact = 0,
+            description = "異常なポートアクセス頻度を制限し、シールドを+30展開。",
+            securityConcept = "【ト: トランスポート層】不要な待ち受けポートを閉じ、接続数を制限して帯域とキューを保護。"
+        ),
+
+        // === L3 ネットワーク層 (ネ) ===
+        DefenseAction(
+            id = ActionId.L3_BLOCK_ICMP_ROUTER,
+            name = "ルータ巨大ICMP遮断 & 破棄",
             commandCode = "ip route add blackhole 198.51.100.0/24",
             layer = OsiLayer.L3_NETWORK,
-            apCost = 2,
-            baseDamage = 45,
+            apCost = 1,
+            baseDamage = 50,
             businessImpact = 0,
-            description = "L3(ネ)対策。IPアドレスに基づき、偽装パケットや巨大Pingパケットをルータで破棄。",
-            securityConcept = "【ネ: ネットワーク層】エンドツーエンドのパケットルーティングを担う層（IP、ICMP）。ルータのACLで送信元偽装IPや不正サブネットを弾く。"
+            description = "ルータのACLで不正なフラグメントPingや送信元偽装パケットを完全破棄。",
+            securityConcept = "【ネ: ネットワーク層】IPアドレスによるパケット中継（ルーティング）。境界機器でのフィルタリングが基本。"
         ),
+        DefenseAction(
+            id = ActionId.L3_INGRESS_FILTER,
+            name = "Ingressフィルタリング (送信元検証)",
+            commandCode = "router(config)# ip verify unicast source reachable-via rx",
+            layer = OsiLayer.L3_NETWORK,
+            apCost = 1,
+            baseShield = 30,
+            businessImpact = 0,
+            description = "到達不能な偽装送信元IPをルータで自動ドロップし、シールド+30展開。",
+            securityConcept = "【ネ: ネットワーク層】送信元IP偽装（IPスプーフィング）をネットワーク境界で防止。"
+        ),
+
+        // === L2 データリンク層 (デ) ===
         DefenseAction(
             id = ActionId.L2_ARP_SNOOPING,
-            name = "[デ] ARPスヌーピング & MAC固定",
+            name = "スイッチDynamic ARP Inspection",
             commandCode = "switch(config)# ip arp inspection vlan 1",
             layer = OsiLayer.L2_DATALINK,
-            apCost = 2,
-            baseDamage = 45,
+            apCost = 1,
+            baseDamage = 50,
             businessImpact = 0,
-            description = "L2(デ)対策。同一LAN内のMACアドレス偽装やARPポイズニングによる盗聴を防止。",
-            securityConcept = "【デ: データリンク層】同一ネットワーク（LAN）内のMACアドレスによる直接通信。スイッチでARP応答を監視し、ルータのフリをする盗聴端末を遮断する。"
+            description = "偽のARP応答パケットをL2スイッチで検知・破棄し、盗聴を粉砕。",
+            securityConcept = "【デ: データリンク層】同一LAN内のMACアドレスによる通信。スイッチでのARP検査が中間者攻撃を防ぐ。"
         ),
         DefenseAction(
+            id = ActionId.L2_PORT_SECURITY,
+            name = "ポートセキュリティ (MACアドレス固定)",
+            commandCode = "switch(config-if)# switchport port-security maximum 1",
+            layer = OsiLayer.L2_DATALINK,
+            apCost = 1,
+            baseShield = 30,
+            businessImpact = 0,
+            description = "未許可MACアドレスのフレーム流入を阻止し、シールド+30展開。",
+            securityConcept = "【デ: データリンク層】MACフラッディング攻撃によるスイッチのハブ化を防止。"
+        ),
+
+        // === L1 物理層 (ブ) ===
+        DefenseAction(
             id = ActionId.L1_LOCK_SERVER_ROOM,
-            name = "[ブ] サーバルーム施錠 & USB無効化",
+            name = "サーバルーム施錠 & USB端子封印",
             commandCode = "physical_security --lock-all --block-usb-storage",
             layer = OsiLayer.L1_PHYSICAL,
-            apCost = 2,
-            baseDamage = 45,
+            apCost = 1,
+            baseDamage = 50,
             businessImpact = 0,
-            description = "L1(ブ)対策。ケーブル・機器・USB端子など物理的な接触・持ち出し・拾い挿しを阻止。",
-            securityConcept = "【ブ: 物理層】ケーブル、端子、電気信号など目に見える物理世界。どんな強力な暗号も、サーバルームに侵入されたりUSBを直挿しされたら突破される。"
+            description = "物理的な接触や不正USBの拾い挿し・配線直結を物理的に完全遮断。",
+            securityConcept = "【ブ: 物理層】ケーブル・端子・電源などの物理媒体。どんな論理防壁も物理接触されたら突破される。"
         ),
         DefenseAction(
             id = ActionId.RESTORE_FROM_TAPE,
-            name = "磁気テープからサーバー健全性復元",
+            name = "磁気テープからサーバー整合性復元",
             commandCode = "lto_tape.restore_partition(\"/srv/core\")",
             layer = OsiLayer.L1_PHYSICAL,
-            apCost = 2,
+            apCost = 1,
             healAmount = 35,
             businessImpact = 0,
-            description = "オフラインのLTO磁気テープから整合性を修復。HPを35回復。",
-            securityConcept = "テープバックアップ（L1/物理的エアギャップ）：ネットワークから物理的に切り離された媒体は、マルウェアが物理法則上アクセス不能。"
+            description = "物理的に隔離されたオフラインLTO磁気テープからバックアップを復元しHP+35回復。",
+            securityConcept = "【ブ: 物理層】エアギャップ（物理的ネットワーク隔離）は、ランサムウェアに対する究極の保険。"
         ),
+
+        // === 最終手段 (過剰防衛) ===
         DefenseAction(
             id = ActionId.OVERKILL_CUT_MAIN_CABLE,
             name = "【過剰防衛】全社光回線LANケーブル引っこ抜き",
-            commandCode = "echo '引っこ抜き完了！全通信遮断！'",
+            commandCode = "echo '光回線物理切断！全通信即時遮断！'",
             layer = OsiLayer.L1_PHYSICAL,
-            apCost = 3,
+            apCost = 1,
             baseDamage = 999,
             isOverkill = true,
             businessImpact = 100,
-            complaintOnUse = "営業部長「おい情シス！客と億単位のビデオ会議中だったんだぞ！回線抜く奴があるかバカモン！」",
-            description = "物理的に全通信を即座に遮断！敵は100%死滅するが、全社業務が完全崩壊する！",
+            complaintOnUse = "営業部長「おい情シス！客と億単位のビデオ商談中だったんだぞ！回線抜く奴があるかバカモン！」",
+            description = "物理的に全通信を即座に遮断！敵は100%死滅するが、全社業務が即時崩壊する！",
             securityConcept = "【過剰防衛の典型例】セキュリティは「事業を継続するため」にあるもの。業務そのものを止めてしまっては本末転倒となり、社内クレームでクビ寸前に。"
         ),
         DefenseAction(
@@ -147,7 +254,7 @@ object DefenseActionCatalog {
             name = "【過剰防衛】社内全PC一括リモート強制電源OFF",
             commandCode = "shutdown /s /m \\* /f /t 0",
             layer = OsiLayer.L1_PHYSICAL,
-            apCost = 3,
+            apCost = 1,
             baseDamage = 999,
             isOverkill = true,
             businessImpact = 85,
@@ -156,4 +263,11 @@ object DefenseActionCatalog {
             securityConcept = "【過剰防衛の典型例】端末の電源強制断はファイル破損の危険大。まずは該当端末のみを論理的にネットワーク隔離するのが正しいインシデント初動対応。"
         )
     )
+
+    fun getActionsForLayer(layer: OsiLayer): List<DefenseAction> {
+        return allActions.filter { it.layer == layer && !it.isOverkill }
+    }
+
+    val overkillActions: List<DefenseAction>
+        get() = allActions.filter { it.isOverkill }
 }

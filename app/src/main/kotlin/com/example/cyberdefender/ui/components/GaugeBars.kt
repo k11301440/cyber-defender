@@ -18,8 +18,7 @@ import com.example.cyberdefender.model.Threat
 import com.example.cyberdefender.ui.theme.*
 
 /**
- * プレイ画面の最上部に配置するスリムなステータスダッシュボード
- * （敵のHP・自社サーバHP・シールド・スタン状態を横並びで即座に把握可能）
+ * プレイ画面の最上部に配置するスリムなステータスダッシュボード (絵文字完全排除)
  */
 @Composable
 fun BattleStatusBar(
@@ -35,10 +34,10 @@ fun BattleStatusBar(
         modifier = modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(3.dp))
-            .background(Color(0xFFEDE9D8))
+            .background(XpWindowBg)
             .border(1.dp, Color(0xFF003C74), RoundedCornerShape(3.dp))
-            .padding(horizontal = 6.dp, vertical = 4.dp),
-        verticalArrangement = Arrangement.spacedBy(3.dp)
+            .padding(horizontal = 8.dp, vertical = 5.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp)
     ) {
         // 上段: 敵情報 & 敵HP
         Row(
@@ -48,32 +47,43 @@ fun BattleStatusBar(
         ) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
                 modifier = Modifier.weight(1f, fill = false)
             ) {
-                Text(
-                    text = "👾",
-                    fontSize = 12.sp
-                )
+                Box(
+                    modifier = Modifier
+                        .background(Color(0xFF991B1B), RoundedCornerShape(2.dp))
+                        .padding(horizontal = 4.dp, vertical = 1.dp)
+                ) {
+                    Text(
+                        text = "[脅威]",
+                        color = Color.White,
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold,
+                        fontFamily = PixelFontFamily
+                    )
+                }
+
                 Text(
                     text = "${threat.name} [${threat.layer.code}:L${threat.layer.layerNumber}]",
                     color = Color(0xFF991B1B),
-                    fontSize = 11.sp,
+                    fontSize = 12.sp,
                     fontWeight = FontWeight.Bold,
                     fontFamily = PixelFontFamily,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
+
                 if (isStunned) {
                     Box(
                         modifier = Modifier
-                            .background(Color(0xFFF59E0B), RoundedCornerShape(2.dp))
-                            .padding(horizontal = 3.dp, vertical = 1.dp)
+                            .background(Color(0xFFD97706), RoundedCornerShape(2.dp))
+                            .padding(horizontal = 4.dp, vertical = 1.dp)
                     ) {
                         Text(
-                            text = "💫スタン中",
+                            text = "[スタン中]",
                             color = Color.White,
-                            fontSize = 8.sp,
+                            fontSize = 9.sp,
                             fontWeight = FontWeight.Bold,
                             fontFamily = PixelFontFamily
                         )
@@ -82,9 +92,9 @@ fun BattleStatusBar(
             }
 
             Text(
-                text = "HP: ${threat.currentHp}/${threat.maxHp}",
-                color = Color(0xFFB91C1C),
-                fontSize = 10.sp,
+                text = "HP: ${threat.currentHp} / ${threat.maxHp}",
+                color = Color(0xFF991B1B),
+                fontSize = 11.sp,
                 fontWeight = FontWeight.Bold,
                 fontFamily = PixelFontFamily
             )
@@ -105,19 +115,19 @@ fun BattleStatusBar(
         ) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
             ) {
                 Text(
-                    text = "💻 自社サーバHP:",
+                    text = "[自社サーバHP]",
                     color = Color(0xFF1E3A8A),
-                    fontSize = 10.sp,
+                    fontSize = 11.sp,
                     fontWeight = FontWeight.Bold,
                     fontFamily = PixelFontFamily
                 )
                 Text(
-                    text = "$serverHp/$maxServerHp",
+                    text = "$serverHp / $maxServerHp",
                     color = if (serverHp > 30) Color(0xFF15803D) else Color(0xFFDC2626),
-                    fontSize = 10.sp,
+                    fontSize = 11.sp,
                     fontWeight = FontWeight.Bold,
                     fontFamily = PixelFontFamily
                 )
@@ -125,19 +135,19 @@ fun BattleStatusBar(
 
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
             ) {
                 Text(
-                    text = "🛡️シールド:",
+                    text = "[シールド]",
                     color = Color(0xFF1D4ED8),
-                    fontSize = 10.sp,
+                    fontSize = 11.sp,
                     fontWeight = FontWeight.Bold,
                     fontFamily = PixelFontFamily
                 )
                 Text(
-                    text = "$shield/$maxShield",
+                    text = "$shield / $maxShield",
                     color = Color(0xFF2563EB),
-                    fontSize = 10.sp,
+                    fontSize = 11.sp,
                     fontWeight = FontWeight.Bold,
                     fontFamily = PixelFontFamily
                 )
@@ -165,7 +175,7 @@ fun CompactProgressBar(
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .height(6.dp)
+            .height(8.dp)
             .background(Color(0xFFCBD5E1), RoundedCornerShape(2.dp))
             .border(1.dp, Color(0xFF64748B), RoundedCornerShape(2.dp))
     ) {

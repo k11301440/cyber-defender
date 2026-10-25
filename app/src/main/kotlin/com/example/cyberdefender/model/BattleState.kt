@@ -1,12 +1,14 @@
 package com.example.cyberdefender.model
 
-enum class ChatSenderType(val icon: String, val label: String) {
-    PHONE("📞", "内線着信"),
-    EMAIL("✉️", "社内通報メール"),
-    AI("🤖", "情シスAI ヘルプデスク君"),
-    ALERT("🚨", "システム監視IDS/IPS"),
-    ACTION("🛡️", "情シス防護コマンド"),
-    COMPLAINT("💢", "激怒の内線")
+enum class ChatSenderType(val tag: String, val speakerName: String) {
+    SYSTEM("[システム]", "社内システム勤怠管理"),
+    PHONE("[内線]", "内線着信 (社内通報)"),
+    EMAIL("[メール]", "全社通知メール"),
+    AI("[AI]", "情シス支援AI ヘルプデスク君"),
+    SIEM("[SIEM]", "SIEM統合監視コンソール"),
+    ALERT("[警告]", "機器監視アラート"),
+    ACTION("[実行]", "情シス防護コマンド"),
+    COMPLAINT("[クレーム]", "怒りの内線")
 }
 
 data class ChatMessage(
@@ -14,14 +16,15 @@ data class ChatMessage(
     val senderType: ChatSenderType,
     val speaker: String,
     val message: String,
-    val timestamp: String = "17:00",
+    val timestamp: String = "09:00",
     val isImportant: Boolean = false
 )
 
 enum class BattlePhase {
     IN_BATTLE,
     VICTORY,
-    DEFEAT
+    DEFEAT,
+    TABOO_GAME_OVER // 禁忌肢による即ゲームオーバー
 }
 
 data class BattleState(
@@ -30,35 +33,35 @@ data class BattleState(
     val shield: Int = 20,
     val maxShield: Int = 100,
     val turn: Int = 1,
-    val remainingActions: Int = 1, // 当該ターンの残り手数 (人員増員で2手)
+    val remainingActions: Int = 1, // 当該ターンの残り手数
     val maxActionsPerTurn: Int = 1,
     val threat: Threat,
+    val currentIncident: IncidentMaster, // 現在飛来している攻撃（100種から）
     val nextAttackIndex: Int = 0,
     val isThreatStunned: Boolean = false,
     val businessImpact: Int = 0, // 業務影響度 (0%〜100%)
     val isOverkillUsed: Boolean = false,
+    val tabooGameOverMessage: String? = null,
     val phase: BattlePhase = BattlePhase.IN_BATTLE,
-    val messages: List<ChatMessage> = emptyList(), // チャット画面風タイムライン
+    val messages: List<ChatMessage> = emptyList(), // チャット風タイムライン
     val selectedLayer: OsiLayer? = null, // 2ステップ選択: 現在選択中の層
-    val isOverkillMenuOpen: Boolean = false, // 2ステップ選択: 最終手段メニュー
-    val remainingTimeSeconds: Int? = null, // エンドコンテンツ用制限時間
-    val earnedBudget: Int = 0 // クリア時に付与される部署予算
+    val isOverkillMenuOpen: Boolean = false,
+    val remainingTimeSeconds: Int? = null,
+    val earnedBudget: Int = 0
 ) {
-    val currentAttack: ThreatAttack
-        get() = threat.attackList[nextAttackIndex % threat.attackList.size]
-
-    // 評価ランクの算出
     val resultRank: String
         get() = when {
-            serverHp <= 0 -> "F (解雇処分・始末書)"
-            isOverkillUsed -> "C (過剰防衛・大クレーム)"
-            businessImpact > 30 -> "B (業務遅延・減給)"
-            serverHp >= 80 && businessImpact == 0 -> "S (神対応・社長賞！)"
-            else -> "A (優秀防衛・ボーナス支給)"
+            phase == BattlePhase.TABOO_GAME_OVER -> "F- (禁忌肢実行・即日解雇)"
+            serverHp <= 0 -> "F (解雇処分・始末書提出)"
+            isOverkillUsed -> "C (過剰防衛・全社クレーム炎上)"
+            businessImpact > 30 -> "B (業務遅延・ボーナス減額)"
+            serverHp >= 80 && businessImpact == 0 -> "S (神対応・社長賞表彰)"
+            else -> "A (優秀防衛・規定賞与支給)"
         }
 
     val rewardBudgetAmount: Int
         get() = when {
+            phase == BattlePhase.TABOO_GAME_OVER -> 0
             serverHp <= 0 -> 0
             isOverkillUsed -> 10000
             businessImpact > 30 -> 150000
@@ -68,10 +71,11 @@ data class BattleState(
 
     val bonusAmountText: String
         get() = when {
-            serverHp <= 0 -> "¥0 (ボーナスカット + 損害賠償検討)"
-            isOverkillUsed -> "¥10,000 (激怒の内線殺到・ほぼ全額没収)"
-            businessImpact > 30 -> "¥150,000 (業務影響分の査定マイナス)"
-            serverHp >= 80 && businessImpact == 0 -> "¥500,000 (満額支給！伝説の情シス！)"
-            else -> "¥350,000 (通常満額支給)"
+            phase == BattlePhase.TABOO_GAME_OVER -> "0円 (懲戒解雇・損害賠償請求)"
+            serverHp <= 0 -> "0円 (全額カット・始末書)"
+            isOverkillUsed -> "10,000円 (クレーム相殺・ほぼ没収)"
+            businessImpact > 30 -> "150,000円 (業務遅延ペナルティ控除)"
+            serverHp >= 80 && businessImpact == 0 -> "500,000円 (満額＋社長特別賞与)"
+            else -> "350,000円 (規定満額支給)"
         }
 }

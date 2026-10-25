@@ -10,6 +10,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.cyberdefender.model.StageCatalog
 import com.example.cyberdefender.ui.components.*
+import com.example.cyberdefender.ui.theme.*
 import com.example.cyberdefender.viewmodel.BattleViewModel
 
 @Composable
@@ -25,17 +26,15 @@ fun BattleScreen(
     val currentStageId by viewModel.currentStageId.collectAsStateWithLifecycle()
     val stage = StageCatalog.stages.find { it.id == currentStageId } ?: StageCatalog.stages.first()
 
-    // 画面全体をブラウン管（CRT）走査線フレームで覆う
     CrtMonitorFrame(modifier = modifier) {
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(Color(0xFF004E98)) // Windows XPデスクトップブルー
-                .statusBarsPadding() // ノッチ・ステータスバーとの干渉を完全回避！
+                .background(XpDesktopBlue) // Windows XP公式デスクトップブルー
+                .statusBarsPadding()
                 .navigationBarsPadding()
                 .padding(horizontal = 4.dp, vertical = 6.dp)
         ) {
-            // Windows XP Lunaウィンドウ
             XpWindow(
                 title = "情シス防御コンソール - ${stage.title} [第${state.turn}ターン]",
                 onCloseClick = onNavigateBack,
@@ -63,7 +62,7 @@ fun BattleScreen(
                         isStunned = state.isThreatStunned
                     )
 
-                    // 2. 上部: チャット画面風タイムライン（内線・メール・AI・アラート）
+                    // 2. 上部: クラシック白地タイムライン（リアルタイム感演出・絵文字完全ゼロ）
                     ChatTimelineView(
                         messages = state.messages,
                         modifier = Modifier
@@ -71,11 +70,12 @@ fun BattleScreen(
                             .weight(1f)
                     )
 
-                    // 3. 下部: 2ステップ操作画面（アプセトネデブ層選択 -> コマンド選択）
+                    // 3. 下部: 2ステップ操作画面（アプセトネデブ層選択 -> コマンド選択・操作域拡大）
                     TwoStepActionSelector(
                         selectedLayer = state.selectedLayer,
                         isOverkillOpen = state.isOverkillMenuOpen,
                         unlockedLayers = progress.unlockedLayers,
+                        unlockedActionIds = progress.unlockedActionIds,
                         remainingActions = state.remainingActions,
                         maxActions = state.maxActionsPerTurn,
                         remainingTimeSeconds = state.remainingTimeSeconds,
@@ -89,7 +89,7 @@ fun BattleScreen(
             }
         }
 
-        // バトル結果ダイアログ (過剰防衛ペナルティ・部署予算獲得)
+        // バトル結果ダイアログ (XPクラシックダイアログ形式)
         BattleResultDialog(
             state = state,
             onRestart = { viewModel.restartStage() },

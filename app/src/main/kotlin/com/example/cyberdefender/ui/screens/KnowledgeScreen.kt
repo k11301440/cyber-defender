@@ -14,19 +14,18 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.example.cyberdefender.model.IncidentLogEntry
-import com.example.cyberdefender.model.OsiKnowledge
-import com.example.cyberdefender.model.StageCatalog
+import com.example.cyberdefender.model.*
 import com.example.cyberdefender.ui.components.*
 import com.example.cyberdefender.ui.theme.*
 import com.example.cyberdefender.viewmodel.BattleViewModel
 
 enum class KnowledgeTab {
     OSI_GUIDE,
-    INCIDENT_LOGS
+    INCIDENT_CATALOG_100
 }
 
 @Composable
@@ -36,19 +35,20 @@ fun KnowledgeScreen(
     modifier: Modifier = Modifier
 ) {
     var selectedTab by remember { mutableStateOf(KnowledgeTab.OSI_GUIDE) }
+    var selectedLayerFilter by remember { mutableStateOf<OsiLayer?>(null) }
     val progress by viewModel.gameProgress.collectAsStateWithLifecycle()
 
     CrtMonitorFrame(modifier = modifier) {
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(Color(0xFF004E98))
+                .background(XpDesktopBlue)
                 .statusBarsPadding()
                 .navigationBarsPadding()
                 .padding(horizontal = 4.dp, vertical = 6.dp)
         ) {
             XpWindow(
-                title = "ヘルプとサポートセンター - OSI知識 & インシデントログ図鑑",
+                title = "ヘルプとサポートセンター - OSI参照モデル & サイバー攻撃100種暗記図鑑",
                 onCloseClick = onNavigateBack,
                 menuItems = listOf(
                     "作戦へ戻る(B)" to onNavigateBack
@@ -61,7 +61,7 @@ fun KnowledgeScreen(
                         .padding(4.dp),
                     verticalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
-                    // タブ切り替え（早見表 vs インシデント図鑑ログ）
+                    // タブ切り替え（早見表 vs 100種図鑑）
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -71,15 +71,15 @@ fun KnowledgeScreen(
                         horizontalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
                         TabButton(
-                            text = "📖 アプセトネデブ早見表",
+                            text = "アプセトネデブ早見表",
                             isSelected = selectedTab == KnowledgeTab.OSI_GUIDE,
                             onClick = { selectedTab = KnowledgeTab.OSI_GUIDE },
                             modifier = Modifier.weight(1f)
                         )
                         TabButton(
-                            text = "📋 被弾インシデント図鑑 (${progress.incidentLogBook.size}件)",
-                            isSelected = selectedTab == KnowledgeTab.INCIDENT_LOGS,
-                            onClick = { selectedTab = KnowledgeTab.INCIDENT_LOGS },
+                            text = "サイバー攻撃100種図鑑 (全100件)",
+                            isSelected = selectedTab == KnowledgeTab.INCIDENT_CATALOG_100,
+                            onClick = { selectedTab = KnowledgeTab.INCIDENT_CATALOG_100 },
                             modifier = Modifier.weight(1f)
                         )
                     }
@@ -92,24 +92,24 @@ fun KnowledgeScreen(
                                     .fillMaxWidth()
                                     .background(Color(0xFFFFFFE1))
                                     .border(1.dp, XpBalloonBorder)
-                                    .padding(6.dp)
+                                    .padding(8.dp)
                             ) {
-                                Column {
+                                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                                     Text(
-                                        text = "💡【伝統の合言葉: アプセトネデブとは？】",
+                                        text = "[伝統の合言葉: アプセトネデブとは？]",
                                         color = Color(0xFFB45309),
-                                        fontSize = 11.sp,
+                                        fontSize = 12.sp,
                                         fontWeight = FontWeight.Bold,
                                         fontFamily = PixelFontFamily
                                     )
                                     Text(
-                                        text = "OSI基本参照モデルの第7層〜第1層の頭文字を取った伝統の暗記語呂合わせ！\n" +
-                                                "「ア」プリ(L7) → 「プ」レゼン(L6) → 「セ」ッション(L5) → " +
-                                                "「ト」ランス(L4) → 「ネ」ット(L3) → 「デ」ータリンク(L2) → 「ブ」ツリ(L1)",
+                                        text = "OSI基本参照モデルの第7層〜第1層の頭文字を取った伝統の暗記語呂合わせ。\n" +
+                                                "「ア」プリケーション(L7) -> 「プ」レゼンテーション(L6) -> 「セ」ッション(L5) -> " +
+                                                "「ト」ランスポート(L4) -> 「ネ」ットワーク(L3) -> 「デ」ータリンク(L2) -> 「ブ」ツリ(L1)",
                                         color = XpTextDark,
-                                        fontSize = 10.sp,
+                                        fontSize = 11.sp,
                                         fontFamily = PixelFontFamily,
-                                        lineHeight = 14.sp
+                                        lineHeight = 16.sp
                                     )
                                 }
                             }
@@ -126,48 +126,55 @@ fun KnowledgeScreen(
                             }
                         }
 
-                        KnowledgeTab.INCIDENT_LOGS -> {
-                            if (progress.incidentLogBook.isEmpty()) {
-                                Box(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .weight(1f)
-                                        .background(Color.White)
-                                        .border(1.dp, XpBorderDark)
-                                        .padding(16.dp),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Column(
-                                        horizontalAlignment = Alignment.CenterHorizontally,
-                                        verticalArrangement = Arrangement.spacedBy(6.dp)
-                                    ) {
-                                        Text(text = "📭", fontSize = 28.sp)
-                                        Text(
-                                            text = "登録されたインシデントログはありません",
-                                            fontSize = 12.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            fontFamily = PixelFontFamily,
-                                            color = XpTextDark
-                                        )
-                                        Text(
-                                            text = "バトル中に敵の攻撃を食らうと、攻撃の手口や防御の原則が自動でこの図鑑に記録されます！",
-                                            fontSize = 10.sp,
-                                            fontFamily = PixelFontFamily,
-                                            color = Color(0xFF64748B),
-                                            lineHeight = 14.sp
-                                        )
-                                    }
+                        KnowledgeTab.INCIDENT_CATALOG_100 -> {
+                            // 層別フィルタボタン
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(3.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                FilterChip(
+                                    label = "全層",
+                                    isSelected = selectedLayerFilter == null,
+                                    onClick = { selectedLayerFilter = null },
+                                    modifier = Modifier.weight(1f)
+                                )
+                                OsiLayer.values().forEach { layer ->
+                                    FilterChip(
+                                        label = layer.code,
+                                        isSelected = selectedLayerFilter == layer,
+                                        onClick = { selectedLayerFilter = layer },
+                                        modifier = Modifier.weight(1f)
+                                    )
                                 }
+                            }
+
+                            val filteredIncidents = if (selectedLayerFilter == null) {
+                                IncidentCatalog.allIncidents
                             } else {
-                                LazyColumn(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .weight(1f),
-                                    verticalArrangement = Arrangement.spacedBy(6.dp)
-                                ) {
-                                    items(progress.incidentLogBook) { entry ->
-                                        IncidentLogCard(entry = entry)
-                                    }
+                                IncidentCatalog.allIncidents.filter { it.layer == selectedLayerFilter }
+                            }
+
+                            Text(
+                                text = "表示中: ${filteredIncidents.size} 件 / 被弾記録済: ${progress.incidentLogBook.size} 件",
+                                color = Color(0xFF1E3A8A),
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                fontFamily = PixelFontFamily
+                            )
+
+                            LazyColumn(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .weight(1f),
+                                verticalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                items(filteredIncidents) { incident ->
+                                    val isHitExperienced = progress.incidentLogBook.any { it.incidentId == incident.id }
+                                    IncidentMasterCard(
+                                        incident = incident,
+                                        isExperienced = isHitExperienced
+                                    )
                                 }
                             }
                         }
@@ -179,28 +186,28 @@ fun KnowledgeScreen(
 }
 
 @Composable
-fun TabButton(
-    text: String,
+fun FilterChip(
+    label: String,
     isSelected: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val bg = if (isSelected) Color.White else Color(0xFFD6D3C4)
-    val border = if (isSelected) Color(0xFF003C74) else Color.Transparent
+    val bg = if (isSelected) Color(0xFF003C74) else Color(0xFFEDE9D8)
+    val text = if (isSelected) Color.White else Color(0xFF1E293B)
 
     Box(
         modifier = modifier
+            .height(30.dp)
             .clip(RoundedCornerShape(2.dp))
             .background(bg)
-            .border(1.dp, border, RoundedCornerShape(2.dp))
-            .clickable(onClick = onClick)
-            .padding(vertical = 6.dp),
+            .border(1.dp, Color(0xFF003C74), RoundedCornerShape(2.dp))
+            .clickable(onClick = onClick),
         contentAlignment = Alignment.Center
     ) {
         Text(
-            text = text,
-            color = if (isSelected) Color(0xFF003C74) else Color(0xFF475569),
-            fontSize = 10.sp,
+            text = label,
+            color = text,
+            fontSize = 11.sp,
             fontWeight = FontWeight.Bold,
             fontFamily = PixelFontFamily
         )
@@ -208,19 +215,24 @@ fun TabButton(
 }
 
 @Composable
-fun OsiKnowledgeCard(
-    item: OsiKnowledge,
+fun IncidentMasterCard(
+    incident: IncidentMaster,
+    isExperienced: Boolean,
     modifier: Modifier = Modifier
 ) {
+    val effectiveAction = DefenseActionCatalog.allActions.find { it.id == incident.effectiveActionId }
+    val tabooAction = DefenseActionCatalog.allActions.find { it.id == incident.tabooActionId }
+
     Column(
         modifier = modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(3.dp))
             .background(Color.White)
-            .border(1.dp, XpBorderShadow, RoundedCornerShape(3.dp))
-            .padding(6.dp),
-        verticalArrangement = Arrangement.spacedBy(3.dp)
+            .border(1.dp, Color(0xFF003C74), RoundedCornerShape(3.dp))
+            .padding(8.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp)
     ) {
+        // ヘッダー: No. & 攻撃名 & 層バッジ & 被弾マーク
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -228,157 +240,125 @@ fun OsiKnowledgeCard(
         ) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                modifier = Modifier.weight(1f, fill = false)
             ) {
                 Box(
                     modifier = Modifier
-                        .size(20.dp)
-                        .background(Color(0xFF003399), RoundedCornerShape(2.dp)),
-                    contentAlignment = Alignment.Center
+                        .background(Color(0xFF003C74), RoundedCornerShape(2.dp))
+                        .padding(horizontal = 4.dp, vertical = 1.dp)
                 ) {
                     Text(
-                        text = item.osiInitial,
+                        text = "No.${incident.id} [${incident.layer.code}:L${incident.layer.layerNumber}]",
                         color = Color.White,
-                        fontSize = 11.sp,
+                        fontSize = 10.sp,
                         fontWeight = FontWeight.Bold,
                         fontFamily = PixelFontFamily
                     )
                 }
+
                 Text(
-                    text = "第${item.layerNumber}層: ${item.layerName}",
-                    fontSize = 11.sp,
+                    text = incident.name,
+                    fontSize = 12.sp,
                     fontWeight = FontWeight.Bold,
-                    color = Color(0xFF003399),
-                    fontFamily = PixelFontFamily
+                    color = Color(0xFF991B1B),
+                    fontFamily = PixelFontFamily,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
                 )
             }
-        }
 
-        Text(
-            text = "📡 代表プロトコル: ${item.representativeProtocols}",
-            fontSize = 10.sp,
-            color = Color(0xFF1E3A8A),
-            fontFamily = PixelFontFamily
-        )
-        Text(
-            text = "⚡ 代表的な脅威: ${item.typicalThreats}",
-            fontSize = 10.sp,
-            color = Color(0xFF991B1B),
-            fontFamily = PixelFontFamily
-        )
-        Text(
-            text = "🛡️ 現実の防護策: ${item.realWorldDefense}",
-            fontSize = 10.sp,
-            color = Color(0xFF166534),
-            fontFamily = PixelFontFamily,
-            lineHeight = 14.sp
-        )
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .background(Color(0xFFFEF3C7))
-                .padding(4.dp)
-        ) {
-            Text(
-                text = "📝 試験Tips: ${item.itExamTip}",
-                fontSize = 9.sp,
-                color = Color(0xFF92400E),
-                fontFamily = PixelFontFamily,
-                lineHeight = 13.sp
-            )
-        }
-    }
-}
-
-@Composable
-fun IncidentLogCard(
-    entry: IncidentLogEntry,
-    modifier: Modifier = Modifier
-) {
-    Column(
-        modifier = modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(3.dp))
-            .background(Color.White)
-            .border(1.dp, Color(0xFFDC2626), RoundedCornerShape(3.dp))
-            .padding(6.dp),
-        verticalArrangement = Arrangement.spacedBy(3.dp)
-    ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(4.dp)
-            ) {
+            if (isExperienced) {
                 Box(
                     modifier = Modifier
-                        .background(Color(0xFFDC2626), RoundedCornerShape(2.dp))
+                        .background(Color(0xFF22C55E), RoundedCornerShape(2.dp))
                         .padding(horizontal = 4.dp, vertical = 1.dp)
                 ) {
                     Text(
-                        text = "【${entry.layer.code}: L${entry.layer.layerNumber}】",
+                        text = "[被弾ログあり]",
                         color = Color.White,
                         fontSize = 9.sp,
                         fontWeight = FontWeight.Bold,
                         fontFamily = PixelFontFamily
                     )
                 }
-                Text(
-                    text = entry.attackName,
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color(0xFF991B1B),
-                    fontFamily = PixelFontFamily
-                )
             }
-
-            Text(
-                text = "威力: ${entry.damage}",
-                color = Color(0xFFB45309),
-                fontSize = 10.sp,
-                fontWeight = FontWeight.Bold,
-                fontFamily = PixelFontFamily
-            )
         }
 
         Text(
-            text = "侵入元: ${entry.threatName}",
+            text = "検知器材: ${incident.deviceSource} / 威力: ${incident.damage}",
             color = Color(0xFF64748B),
-            fontSize = 9.sp,
+            fontSize = 10.sp,
             fontFamily = PixelFontFamily
         )
 
-        Text(
-            text = "🔍 攻撃の仕組み:\n${entry.mechanism}",
-            color = Color(0xFF1E293B),
-            fontSize = 10.sp,
-            fontFamily = PixelFontFamily,
-            lineHeight = 14.sp
-        )
+        // 【有効な対策】
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(Color(0xFFF0FDF4), RoundedCornerShape(2.dp))
+                .border(1.dp, Color(0xFF16A34A), RoundedCornerShape(2.dp))
+                .padding(6.dp)
+        ) {
+            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(
+                    text = "【有効な対策】: ${effectiveAction?.name ?: "適正防護コマンド"}",
+                    color = Color(0xFF15803D),
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold,
+                    fontFamily = PixelFontFamily
+                )
+                Text(
+                    text = "理由: ${incident.effectiveReason}",
+                    color = Color(0xFF1E293B),
+                    fontSize = 10.sp,
+                    fontFamily = PixelFontFamily,
+                    lineHeight = 14.sp
+                )
+            }
+        }
 
-        Text(
-            text = "🛡️ 防御の原則:\n${entry.defensePrinciple}",
-            color = Color(0xFF15803D),
-            fontSize = 10.sp,
-            fontFamily = PixelFontFamily,
-            lineHeight = 14.sp
-        )
+        // 【禁忌肢（絶対禁止）】 (ある場合のみ表示)
+        if (tabooAction != null) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(Color(0xFFFEF2F2), RoundedCornerShape(2.dp))
+                    .border(1.dp, Color(0xFFDC2626), RoundedCornerShape(2.dp))
+                    .padding(6.dp)
+            ) {
+                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Text(
+                        text = "※【禁忌肢 (選んだら即負け)】: ${tabooAction.name}",
+                        color = Color(0xFFB91C1C),
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        fontFamily = PixelFontFamily
+                    )
+                    Text(
+                        text = "即死理由: ${tabooAction.tabooGameOverMessage}",
+                        color = Color(0xFF7F1D1D),
+                        fontSize = 10.sp,
+                        fontFamily = PixelFontFamily,
+                        lineHeight = 14.sp
+                    )
+                }
+            }
+        }
 
+        // 【試験・実務暗記Tips】
         Box(
             modifier = Modifier
                 .fillMaxWidth()
                 .background(Color(0xFFEFF6FF))
-                .padding(4.dp)
+                .padding(6.dp)
         ) {
             Text(
-                text = "🎓 試験・実務ポイント:\n${entry.examTip}",
-                fontSize = 9.sp,
+                text = "試験Tips: ${incident.examTip}",
+                fontSize = 10.sp,
                 color = Color(0xFF1E40AF),
                 fontFamily = PixelFontFamily,
-                lineHeight = 13.sp
+                lineHeight = 14.sp
             )
         }
     }

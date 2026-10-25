@@ -2,12 +2,17 @@ package com.example.cyberdefender.ui.theme
 
 import androidx.compose.material3.Typography
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
+import com.example.cyberdefender.R
 
-// ドット・ビットマップ感のある monospace タイポグラフィ
-val PixelFontFamily = FontFamily.Monospace
+// Windows XP / レトロPCのビットマップ感を完全再現する DotGothic16 フォント
+val PixelFontFamily = FontFamily(
+    Font(R.font.dotgothic16_regular, FontWeight.Normal),
+    Font(R.font.dotgothic16_regular, FontWeight.Bold)
+)
 
 val Typography = Typography(
     titleLarge = TextStyle(
@@ -52,18 +57,18 @@ val Typography = Typography(
     labelLarge = TextStyle(
         fontFamily = PixelFontFamily,
         fontWeight = FontWeight.Bold,
-        fontSize = 12.sp,
+        fontSize = 13.sp,
         letterSpacing = 0.5.sp
     ),
     labelMedium = TextStyle(
         fontFamily = PixelFontFamily,
         fontWeight = FontWeight.Bold,
-        fontSize = 11.sp,
+        fontSize = 12.sp,
         letterSpacing = 0.3.sp
     ),
     labelSmall = TextStyle(
         fontFamily = PixelFontFamily,
-        fontWeight = FontWeight.Medium,
+        fontWeight = FontWeight.Normal,
         fontSize = 10.sp,
         letterSpacing = 0.2.sp
     )

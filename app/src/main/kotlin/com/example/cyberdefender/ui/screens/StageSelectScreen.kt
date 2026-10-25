@@ -15,11 +15,11 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.example.cyberdefender.model.GameProgress
 import com.example.cyberdefender.model.Stage
 import com.example.cyberdefender.model.StageCatalog
 import com.example.cyberdefender.ui.components.*
@@ -38,12 +38,15 @@ fun StageSelectScreen(
     val nextStoryStageId = progress.nextStoryStageId
     val nextStage = StageCatalog.stages.find { it.id == nextStoryStageId } ?: StageCatalog.stages.first()
 
+    val prologueStep by viewModel.currentPrologueStep.collectAsStateWithLifecycle()
+    val showSiemTutorial by viewModel.showSiemTutorial.collectAsStateWithLifecycle()
+
     CrtMonitorFrame(modifier = modifier) {
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(Color(0xFF004E98)) // Windows XPデスクトップ背景色
-                .statusBarsPadding() // ノッチ干渉完全回避
+                .background(XpDesktopBlue) // Windows XP公式デスクトップ青
+                .statusBarsPadding()
                 .navigationBarsPadding()
                 .padding(horizontal = 4.dp, vertical = 6.dp)
         ) {
@@ -64,7 +67,7 @@ fun StageSelectScreen(
                     // 課長の訓示バルーン
                     XpBalloonNotification(
                         speaker = "情シス課長 (内線: 101)",
-                        message = "「おい新人！アプセトネデブの各層をピンポイントで防護しろ！防衛に成功すれば部署予算が支給されるから、人員増員やCDN導入で自社インフラを強化していけ！」",
+                        message = "「アプセトネデブの各層をピンポイントで防護せよ！適正な層を選ばないと効果が半減するぞ。防衛成功の部署予算で人員増員やSIEM導入を進めろ！」",
                         isAngry = false
                     )
 
@@ -73,9 +76,9 @@ fun StageSelectScreen(
                         modifier = Modifier
                             .fillMaxWidth()
                             .clip(RoundedCornerShape(3.dp))
-                            .background(Color(0xFFEDE9D8))
+                            .background(XpWindowBg)
                             .border(1.dp, Color(0xFF003C74), RoundedCornerShape(3.dp))
-                            .padding(horizontal = 8.dp, vertical = 4.dp)
+                            .padding(horizontal = 8.dp, vertical = 6.dp)
                     ) {
                         Row(
                             modifier = Modifier.fillMaxWidth(),
@@ -84,64 +87,71 @@ fun StageSelectScreen(
                         ) {
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
                             ) {
-                                Text(text = "💰 部署IT予算:", fontSize = 11.sp, color = XpTextDark, fontFamily = PixelFontFamily)
                                 Text(
-                                    text = "¥${progress.departmentBudget.toString().reversed().chunked(3).joinToString(",").reversed()}",
+                                    text = "部署IT予算:",
                                     fontSize = 12.sp,
+                                    color = XpTextDark,
+                                    fontFamily = PixelFontFamily
+                                )
+                                Text(
+                                    text = "${progress.departmentBudget.toString().reversed().chunked(3).joinToString(",").reversed()} 円",
+                                    fontSize = 13.sp,
                                     fontWeight = FontWeight.Bold,
                                     color = Color(0xFFB45309),
                                     fontFamily = PixelFontFamily
                                 )
                             }
 
-                            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                                 XpButton(
-                                    text = "🏢 設備投資",
+                                    text = "設備投資",
                                     onClick = onOpenUpgrades,
-                                    fontSize = 10
+                                    fontSize = 11,
+                                    minHeight = 38
                                 )
                                 XpButton(
-                                    text = "📖 図鑑・早見表",
+                                    text = "図鑑・早見表",
                                     onClick = onOpenKnowledge,
-                                    fontSize = 10
+                                    fontSize = 11,
+                                    minHeight = 38
                                 )
                             }
                         }
                     }
 
-                    // メインリスト（次の話の推奨カード ＋ 過去の話一覧 ＋ エンドコンテンツ）
+                    // メインリスト
                     LazyColumn(
                         modifier = Modifier
                             .fillMaxWidth()
                             .weight(1f),
-                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         // 1. 次の話へ出撃（推奨）
                         item {
                             Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
                                 Text(
-                                    text = "🎯 【次に出撃すべき防衛任務】:",
+                                    text = "[次に出撃すべき防衛任務]:",
                                     color = Color(0xFF003C74),
-                                    fontSize = 11.sp,
+                                    fontSize = 12.sp,
                                     fontWeight = FontWeight.Bold,
                                     fontFamily = PixelFontFamily
                                 )
 
                                 NextStageHeroCard(
                                     stage = nextStage,
-                                    onClick = { onSelectStage(nextStage.id) }
+                                    onClick = { viewModel.startStage(nextStage.id); if (nextStage.id > 1 || progress.isPrologueStorySeen) onSelectStage(nextStage.id) }
                                 )
                             }
                         }
 
-                        // 2. 過去の話一覧
+                        // 2. 作戦アーカイブ
                         item {
                             Text(
-                                text = "📁 作戦アーカイブ（再挑戦可能）:",
+                                text = "作戦アーカイブ一覧 (Clear状況):",
                                 color = XpTextDark,
-                                fontSize = 11.sp,
+                                fontSize = 12.sp,
                                 fontWeight = FontWeight.Bold,
                                 fontFamily = PixelFontFamily
                             )
@@ -156,7 +166,12 @@ fun StageSelectScreen(
                                 stage = stage,
                                 isCleared = isCleared,
                                 isUnlocked = isUnlocked,
-                                onClick = { if (isUnlocked) onSelectStage(stage.id) }
+                                onClick = {
+                                    if (isUnlocked) {
+                                        viewModel.startStage(stage.id)
+                                        if (stage.id > 1 || progress.isPrologueStorySeen) onSelectStage(stage.id)
+                                    }
+                                }
                             )
                         }
 
@@ -166,9 +181,9 @@ fun StageSelectScreen(
                             item {
                                 Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
                                     Text(
-                                        text = "🚨 【エンドコンテンツ（高難度サバイバル）】:",
+                                        text = "[エンドコンテンツ (高難度サバイバル)]:",
                                         color = Color(0xFF991B1B),
-                                        fontSize = 11.sp,
+                                        fontSize = 12.sp,
                                         fontWeight = FontWeight.Bold,
                                         fontFamily = PixelFontFamily
                                     )
@@ -176,11 +191,78 @@ fun StageSelectScreen(
                                     EndgameStageCard(
                                         stage = endgameStage,
                                         isUnlocked = progress.isAllStoryCleared,
-                                        onClick = { if (progress.isAllStoryCleared) onSelectStage(endgameStage.id) }
+                                        onClick = {
+                                            if (progress.isAllStoryCleared) {
+                                                viewModel.selectStage(endgameStage.id)
+                                                onSelectStage(endgameStage.id)
+                                            }
+                                        }
                                     )
                                 }
                             }
                         }
+                    }
+                }
+            }
+        }
+
+        // プロローグ会話イベントダイアログ (第1話突入前)
+        prologueStep?.let { step ->
+            StoryDialog(
+                step = step,
+                onChoiceSelected = { choice ->
+                    viewModel.advancePrologue(choice)
+                    if (choice.nextStepId == 0) {
+                        onSelectStage(1)
+                    }
+                }
+            )
+        }
+
+        // 第1話クリア後のSIEM購入チュートリアルダイアログ
+        if (showSiemTutorial) {
+            XpClassicDialog(
+                title = "情シス新任研修 - [チュートリアル通知]",
+                onDismissRequest = { viewModel.dismissSiemTutorial() }
+            ) {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        text = "情シス課長より業務指示:",
+                        color = Color(0xFF0055EA),
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        fontFamily = PixelFontFamily
+                    )
+                    Text(
+                        text = "「第1話の防衛成功おめでとう！\n" +
+                                "獲得した部署予算を使って、まずはメニューの【設備投資】から『SIEM統合ログ監視コンソール (Lv1)』を購入して導入しろ！\n" +
+                                "SIEMを導入すれば、第2話以降で機器からの侵入ログがリアルタイムに手元に届くようになるぞ！」",
+                        color = Color.Black,
+                        fontSize = 12.sp,
+                        fontFamily = PixelFontFamily,
+                        lineHeight = 17.sp
+                    )
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        XpButton(
+                            text = "設備投資へ行く [>>]",
+                            onClick = {
+                                viewModel.dismissSiemTutorial()
+                                onOpenUpgrades()
+                            },
+                            isPrimary = true,
+                            modifier = Modifier.weight(1f),
+                            minHeight = 44
+                        )
+                        XpButton(
+                            text = "後で確認 [OK]",
+                            onClick = { viewModel.dismissSiemTutorial() },
+                            modifier = Modifier.weight(1f),
+                            minHeight = 44
+                        )
                     }
                 }
             }
@@ -199,15 +281,15 @@ fun NextStageHeroCard(
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(4.dp))
+            .clip(RoundedCornerShape(3.dp))
             .background(
                 Brush.verticalGradient(
                     listOf(Color(0xFFEFF6FF), Color(0xFFDBEAFE), Color(0xFFBFDBFE))
                 )
             )
-            .border(2.dp, Color(0xFF2563EB), RoundedCornerShape(4.dp))
+            .border(2.dp, Color(0xFF2563EB), RoundedCornerShape(3.dp))
             .clickable(onClick = onClick)
-            .padding(10.dp)
+            .padding(12.dp)
     ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -216,29 +298,29 @@ fun NextStageHeroCard(
         ) {
             Column(
                 modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(2.dp)
+                verticalArrangement = Arrangement.spacedBy(3.dp)
             ) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
                     Box(
                         modifier = Modifier
                             .background(Color(0xFF2563EB), RoundedCornerShape(2.dp))
-                            .padding(horizontal = 4.dp, vertical = 1.dp)
+                            .padding(horizontal = 6.dp, vertical = 2.dp)
                     ) {
                         Text(
                             text = "NEXT MISSION",
                             color = Color.White,
-                            fontSize = 9.sp,
+                            fontSize = 10.sp,
                             fontWeight = FontWeight.Bold,
                             fontFamily = PixelFontFamily
                         )
                     }
                     Text(
-                        text = stage.difficulty,
+                        text = "[難易度: ${stage.difficulty}]",
                         color = Color(0xFF1E40AF),
-                        fontSize = 10.sp,
+                        fontSize = 11.sp,
                         fontWeight = FontWeight.Bold,
                         fontFamily = PixelFontFamily
                     )
@@ -257,33 +339,26 @@ fun NextStageHeroCard(
                 Text(
                     text = stage.subtitle,
                     color = Color(0xFF3B82F6),
-                    fontSize = 10.sp,
+                    fontSize = 11.sp,
                     fontFamily = PixelFontFamily,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
             }
 
-            Box(
-                modifier = Modifier
-                    .clip(RoundedCornerShape(3.dp))
-                    .background(Color(0xFF16A34A))
-                    .padding(horizontal = 10.dp, vertical = 8.dp)
-            ) {
-                Text(
-                    text = "出撃 🚀",
-                    color = Color.White,
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Bold,
-                    fontFamily = PixelFontFamily
-                )
-            }
+            XpButton(
+                text = "出撃 [>>]",
+                onClick = onClick,
+                isPrimary = true,
+                fontSize = 13,
+                minHeight = 44
+            )
         }
     }
 }
 
 /**
- * 過去の話一覧カード
+ * 過去の話一覧カード (Clearバッジの横位置を完全に揃えた表形式レイアウト)
  */
 @Composable
 fun StageArchiveCard(
@@ -298,64 +373,92 @@ fun StageArchiveCard(
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .heightIn(min = 52.dp) // 操作域拡大
             .clip(RoundedCornerShape(3.dp))
             .background(bg)
             .border(1.dp, border, RoundedCornerShape(3.dp))
             .clickable(enabled = isUnlocked, onClick = onClick)
-            .padding(horizontal = 8.dp, vertical = 6.dp),
+            .padding(horizontal = 10.dp, vertical = 6.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
+        // 左側: タイトル & サブタイトル
         Column(
             modifier = Modifier.weight(1f),
             verticalArrangement = Arrangement.spacedBy(2.dp)
         ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(6.dp)
-            ) {
-                Text(
-                    text = if (isUnlocked) stage.title else "🔒 第${stage.id}話 (未開放)",
-                    color = if (isUnlocked) Color(0xFF1E293B) else Color(0xFF94A3B8),
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.Bold,
-                    fontFamily = PixelFontFamily,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-                if (isCleared) {
-                    Box(
-                        modifier = Modifier
-                            .background(Color(0xFF22C55E), RoundedCornerShape(2.dp))
-                            .padding(horizontal = 4.dp, vertical = 1.dp)
-                    ) {
-                        Text(
-                            text = "CLEAR",
-                            color = Color.White,
-                            fontSize = 8.sp,
-                            fontWeight = FontWeight.Bold,
-                            fontFamily = PixelFontFamily
-                        )
-                    }
-                }
-            }
+            Text(
+                text = if (isUnlocked) stage.title else "[未開放] 第${stage.id}話",
+                color = if (isUnlocked) Color(0xFF1E293B) else Color(0xFF94A3B8),
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Bold,
+                fontFamily = PixelFontFamily,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
 
             Text(
                 text = stage.subtitle,
                 color = if (isUnlocked) Color(0xFF64748B) else Color(0xFFCBD5E1),
-                fontSize = 9.sp,
+                fontSize = 10.sp,
                 fontFamily = PixelFontFamily,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
         }
 
-        if (isUnlocked) {
-            XpButton(
-                text = if (isCleared) "再挑戦" else "挑戦",
-                onClick = onClick,
-                fontSize = 10
-            )
+        // 右側: 固定幅(70.dp)のClearバッジ枠 ＆ ボタン (完全に垂直位置を整列！)
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            // 固定幅のClearステータス領域
+            Box(
+                modifier = Modifier.width(64.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                if (isCleared) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(Color(0xFF22C55E), RoundedCornerShape(2.dp))
+                            .border(1.dp, Color(0xFF15803D), RoundedCornerShape(2.dp))
+                            .padding(vertical = 3.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "[Clear]",
+                            color = Color.White,
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold,
+                            fontFamily = PixelFontFamily
+                        )
+                    }
+                } else if (isUnlocked) {
+                    Text(
+                        text = "[未挑戦]",
+                        color = Color(0xFF64748B),
+                        fontSize = 10.sp,
+                        fontFamily = PixelFontFamily
+                    )
+                } else {
+                    Text(
+                        text = "[封鎖]",
+                        color = Color(0xFF94A3B8),
+                        fontSize = 10.sp,
+                        fontFamily = PixelFontFamily
+                    )
+                }
+            }
+
+            if (isUnlocked) {
+                XpButton(
+                    text = if (isCleared) "再挑戦" else "挑戦",
+                    onClick = onClick,
+                    fontSize = 11,
+                    minHeight = 38
+                )
+            }
         }
     }
 }
@@ -380,15 +483,15 @@ fun EndgameStageCard(
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(4.dp))
+            .clip(RoundedCornerShape(3.dp))
             .background(bgBrush)
             .border(
                 2.dp,
                 if (isUnlocked) Color(0xFFDC2626) else Color(0xFF94A3B8),
-                RoundedCornerShape(4.dp)
+                RoundedCornerShape(3.dp)
             )
             .clickable(enabled = isUnlocked, onClick = onClick)
-            .padding(10.dp)
+            .padding(12.dp)
     ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -397,29 +500,29 @@ fun EndgameStageCard(
         ) {
             Column(
                 modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(2.dp)
+                verticalArrangement = Arrangement.spacedBy(3.dp)
             ) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
                     Box(
                         modifier = Modifier
                             .background(if (isUnlocked) Color(0xFFDC2626) else Color(0xFF64748B), RoundedCornerShape(2.dp))
-                            .padding(horizontal = 4.dp, vertical = 1.dp)
+                            .padding(horizontal = 6.dp, vertical = 2.dp)
                     ) {
                         Text(
-                            text = if (isUnlocked) "⏱️ 90秒制限" else "🔒 LOCKED",
+                            text = if (isUnlocked) "[90秒制限]" else "[封鎖中]",
                             color = Color.White,
-                            fontSize = 9.sp,
+                            fontSize = 10.sp,
                             fontWeight = FontWeight.Bold,
                             fontFamily = PixelFontFamily
                         )
                     }
                     Text(
-                        text = "NIGHTMARE",
+                        text = "[難易度: NIGHTMARE]",
                         color = if (isUnlocked) Color(0xFF991B1B) else Color(0xFF64748B),
-                        fontSize = 10.sp,
+                        fontSize = 11.sp,
                         fontWeight = FontWeight.Bold,
                         fontFamily = PixelFontFamily
                     )
@@ -428,7 +531,7 @@ fun EndgameStageCard(
                 Text(
                     text = stage.title,
                     color = if (isUnlocked) Color(0xFF7F1D1D) else Color(0xFF64748B),
-                    fontSize = 12.sp,
+                    fontSize = 13.sp,
                     fontWeight = FontWeight.Bold,
                     fontFamily = PixelFontFamily,
                     maxLines = 1,
@@ -438,7 +541,7 @@ fun EndgameStageCard(
                 Text(
                     text = if (isUnlocked) "全アプセトネデブ層から複合波状攻撃！多層防御で生き残れ！" else "全ストーリー（第1話〜最終話）をクリアすると解放されます",
                     color = if (isUnlocked) Color(0xFF991B1B) else Color(0xFF94A3B8),
-                    fontSize = 9.sp,
+                    fontSize = 10.sp,
                     fontFamily = PixelFontFamily,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
@@ -446,20 +549,13 @@ fun EndgameStageCard(
             }
 
             if (isUnlocked) {
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(3.dp))
-                        .background(Color(0xFFDC2626))
-                        .padding(horizontal = 8.dp, vertical = 6.dp)
-                ) {
-                    Text(
-                        text = "非常出撃",
-                        color = Color.White,
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold,
-                        fontFamily = PixelFontFamily
-                    )
-                }
+                XpButton(
+                    text = "非常出撃",
+                    onClick = onClick,
+                    isPrimary = true,
+                    fontSize = 12,
+                    minHeight = 44
+                )
             }
         }
     }

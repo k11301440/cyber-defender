@@ -23,7 +23,7 @@ import com.example.cyberdefender.model.*
 import com.example.cyberdefender.ui.theme.*
 
 /**
- * 2ステップ防護コンソール
+ * 2ステップ防護コンソール (絵文字完全排除・操作域拡大)
  * Step 1: まずアプセトネデブの層（+最終手段）を選択
  * Step 2: 選択した層に対応する防護コマンドを選択して実行
  */
@@ -32,6 +32,7 @@ fun TwoStepActionSelector(
     selectedLayer: OsiLayer?,
     isOverkillOpen: Boolean,
     unlockedLayers: Set<OsiLayer>,
+    unlockedActionIds: Set<ActionId>,
     remainingActions: Int,
     maxActions: Int,
     remainingTimeSeconds: Int?,
@@ -45,13 +46,13 @@ fun TwoStepActionSelector(
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(4.dp))
-            .background(Color(0xFFEDE9D8)) // XPクラシックウィンドウ背景色
-            .border(2.dp, Color(0xFF003C74), RoundedCornerShape(4.dp))
-            .padding(6.dp),
-        verticalArrangement = Arrangement.spacedBy(4.dp)
+            .clip(RoundedCornerShape(3.dp))
+            .background(Color(0xFFEDE9D8))
+            .border(2.dp, Color(0xFF003C74), RoundedCornerShape(3.dp))
+            .padding(8.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp)
     ) {
-        // コンソールヘッダー: 手数情報・タイマー・ターン終了ボタン
+        // コンソールヘッダー: 残り手数・タイマー・ターン終了ボタン
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -59,37 +60,35 @@ fun TwoStepActionSelector(
         ) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                // 手数表示
                 Box(
                     modifier = Modifier
                         .clip(RoundedCornerShape(2.dp))
                         .background(Color(0xFF1E3A8A))
-                        .padding(horizontal = 6.dp, vertical = 3.dp)
+                        .padding(horizontal = 8.dp, vertical = 5.dp)
                 ) {
                     Text(
-                        text = "⚡ 残り行動: $remainingActions / $maxActions 手",
+                        text = "残り行動: $remainingActions / $maxActions 手",
                         color = Color.White,
-                        fontSize = 11.sp,
+                        fontSize = 12.sp,
                         fontWeight = FontWeight.Bold,
                         fontFamily = PixelFontFamily,
                         maxLines = 1
                     )
                 }
 
-                // 制限時間タイマー（エンドコンテンツ用）
                 if (remainingTimeSeconds != null) {
                     Box(
                         modifier = Modifier
                             .clip(RoundedCornerShape(2.dp))
                             .background(if (remainingTimeSeconds <= 20) Color(0xFFDC2626) else Color(0xFFD97706))
-                            .padding(horizontal = 6.dp, vertical = 3.dp)
+                            .padding(horizontal = 8.dp, vertical = 5.dp)
                     ) {
                         Text(
-                            text = "⏱️ ${remainingTimeSeconds}秒",
+                            text = "残り時間: ${remainingTimeSeconds}秒",
                             color = Color.White,
-                            fontSize = 11.sp,
+                            fontSize = 12.sp,
                             fontWeight = FontWeight.Bold,
                             fontFamily = PixelFontFamily,
                             maxLines = 1
@@ -98,28 +97,27 @@ fun TwoStepActionSelector(
                 }
             }
 
-            // ターン終了ボタン
             XpButton(
-                text = "ターン終了 ⏩",
+                text = "ターン終了 [>>]",
                 onClick = onEndTurn,
                 isPrimary = true,
-                fontSize = 11
+                fontSize = 12,
+                minHeight = 44
             )
         }
 
         // === Step 1: 層の選択（7層 + 最終手段） ===
         if (selectedLayer == null && !isOverkillOpen) {
-            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 Text(
-                    text = "👇 【Step 1】 迎撃するアプセトネデブの層を選択:",
+                    text = "[Step 1] 迎撃するアプセトネデブの層を選択してください:",
                     color = XpTextDark,
-                    fontSize = 11.sp,
+                    fontSize = 12.sp,
                     fontWeight = FontWeight.Bold,
                     fontFamily = PixelFontFamily,
                     maxLines = 1
                 )
 
-                // 4列×2行のグリッド配置
                 val layersInOrder = listOf(
                     OsiLayer.L7_APPLICATION,
                     OsiLayer.L6_PRESENTATION,
@@ -132,8 +130,8 @@ fun TwoStepActionSelector(
 
                 LazyVerticalGrid(
                     columns = GridCells.Fixed(4),
-                    horizontalArrangement = Arrangement.spacedBy(4.dp),
-                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp),
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     items(layersInOrder) { layer ->
@@ -145,7 +143,6 @@ fun TwoStepActionSelector(
                         )
                     }
 
-                    // 8個目の枠: 最終手段（過剰防衛）
                     item {
                         OverkillSelectBtn(onClick = onOpenOverkill)
                     }
@@ -155,18 +152,18 @@ fun TwoStepActionSelector(
 
         // === Step 2: 選択した層のコマンド一覧 ===
         if (selectedLayer != null) {
-            val actions = DefenseActionCatalog.getActionsForLayer(selectedLayer)
+            val actions = DefenseActionCatalog.getActionsForLayer(selectedLayer, unlockedActionIds)
 
-            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = "🛡️ 【Step 2】 ${selectedLayer.shortName} の防護コマンド:",
+                        text = "[Step 2] ${selectedLayer.shortName} の防護コマンド:",
                         color = Color(0xFF003C74),
-                        fontSize = 11.sp,
+                        fontSize = 12.sp,
                         fontWeight = FontWeight.Bold,
                         fontFamily = PixelFontFamily,
                         maxLines = 1,
@@ -175,14 +172,15 @@ fun TwoStepActionSelector(
                     )
 
                     XpButton(
-                        text = "↩️ 層を選び直す",
+                        text = "層を選び直す [<-]",
                         onClick = onBackToLayerSelect,
-                        fontSize = 10
+                        fontSize = 11,
+                        minHeight = 38
                     )
                 }
 
                 Column(
-                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp),
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     actions.forEach { action ->
@@ -200,30 +198,31 @@ fun TwoStepActionSelector(
         if (isOverkillOpen) {
             val overkillActions = DefenseActionCatalog.overkillActions
 
-            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = "⚠️ 【危険】 最終手段（過剰防衛）:",
+                        text = "[警告] 最終手段（過剰防衛措置）:",
                         color = Color(0xFFB91C1C),
-                        fontSize = 11.sp,
+                        fontSize = 12.sp,
                         fontWeight = FontWeight.Bold,
                         fontFamily = PixelFontFamily,
                         maxLines = 1
                     )
 
                     XpButton(
-                        text = "↩️ 通常防護に戻る",
+                        text = "通常防護に戻る [<-]",
                         onClick = onBackToLayerSelect,
-                        fontSize = 10
+                        fontSize = 11,
+                        minHeight = 38
                     )
                 }
 
                 Column(
-                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp),
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     overkillActions.forEach { action ->
@@ -257,7 +256,7 @@ fun LayerSelectBtn(
 
     Box(
         modifier = Modifier
-            .height(42.dp)
+            .height(48.dp) // 操作域拡大
             .clip(RoundedCornerShape(3.dp))
             .background(bgBrush)
             .border(
@@ -275,9 +274,9 @@ fun LayerSelectBtn(
         ) {
             if (isUnlocked) {
                 Text(
-                    text = "【${layer.code}】L${layer.layerNumber}",
+                    text = "[${layer.code}] L${layer.layerNumber}",
                     color = Color(0xFF003C74),
-                    fontSize = 11.sp,
+                    fontSize = 12.sp,
                     fontWeight = FontWeight.Bold,
                     fontFamily = PixelFontFamily,
                     maxLines = 1
@@ -285,15 +284,15 @@ fun LayerSelectBtn(
                 Text(
                     text = layer.japaneseLabel.take(4),
                     color = Color(0xFF475569),
-                    fontSize = 9.sp,
+                    fontSize = 10.sp,
                     fontFamily = PixelFontFamily,
                     maxLines = 1
                 )
             } else {
                 Text(
-                    text = "🔒 L${layer.layerNumber}",
+                    text = "[x] L${layer.layerNumber}",
                     color = Color(0xFF64748B),
-                    fontSize = 10.sp,
+                    fontSize = 11.sp,
                     fontWeight = FontWeight.Bold,
                     fontFamily = PixelFontFamily,
                     maxLines = 1
@@ -301,7 +300,7 @@ fun LayerSelectBtn(
                 Text(
                     text = "未開放",
                     color = Color(0xFF94A3B8),
-                    fontSize = 8.sp,
+                    fontSize = 9.sp,
                     fontFamily = PixelFontFamily,
                     maxLines = 1
                 )
@@ -316,7 +315,7 @@ fun OverkillSelectBtn(
 ) {
     Box(
         modifier = Modifier
-            .height(42.dp)
+            .height(48.dp)
             .clip(RoundedCornerShape(3.dp))
             .background(
                 Brush.verticalGradient(
@@ -333,9 +332,9 @@ fun OverkillSelectBtn(
             verticalArrangement = Arrangement.Center
         ) {
             Text(
-                text = "⚠️ 最終手段",
+                text = "[!] 最終手段",
                 color = Color(0xFFB91C1C),
-                fontSize = 10.sp,
+                fontSize = 11.sp,
                 fontWeight = FontWeight.Bold,
                 fontFamily = PixelFontFamily,
                 maxLines = 1
@@ -343,7 +342,7 @@ fun OverkillSelectBtn(
             Text(
                 text = "過剰防衛",
                 color = Color(0xFF991B1B),
-                fontSize = 8.sp,
+                fontSize = 9.sp,
                 fontFamily = PixelFontFamily,
                 maxLines = 1
             )
@@ -368,11 +367,12 @@ fun ActionCommandCard(
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .heightIn(min = 52.dp) // 操作域拡大
             .clip(RoundedCornerShape(3.dp))
             .background(bgBrush)
             .border(1.dp, Color(0xFF003C74), RoundedCornerShape(3.dp))
             .clickable(enabled = canAfford, onClick = onClick)
-            .padding(horizontal = 8.dp, vertical = 6.dp),
+            .padding(horizontal = 10.dp, vertical = 6.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -384,24 +384,24 @@ fun ActionCommandCard(
                 Text(
                     text = action.name,
                     color = if (canAfford) Color(0xFF003C74) else Color(0xFF64748B),
-                    fontSize = 11.sp,
+                    fontSize = 12.sp,
                     fontWeight = FontWeight.Bold,
                     fontFamily = PixelFontFamily,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
-                if (action.baseDamage > 0) {
+                if (action.expectedDamage > 0) {
                     Text(
-                        text = "⚔️威力${action.baseDamage}",
+                        text = "威力:${action.expectedDamage}(期待値)",
                         color = Color(0xFFB45309),
                         fontSize = 10.sp,
                         fontWeight = FontWeight.Bold,
                         fontFamily = PixelFontFamily
                     )
                 }
-                if (action.baseShield > 0) {
+                if (action.expectedShield > 0) {
                     Text(
-                        text = "🛡️シールド+${action.baseShield}",
+                        text = "シールド:+${action.expectedShield}",
                         color = Color(0xFF1D4ED8),
                         fontSize = 10.sp,
                         fontWeight = FontWeight.Bold,
@@ -410,7 +410,7 @@ fun ActionCommandCard(
                 }
                 if (action.healAmount > 0) {
                     Text(
-                        text = "💚回復+${action.healAmount}",
+                        text = "回復:+${action.healAmount}",
                         color = Color(0xFF15803D),
                         fontSize = 10.sp,
                         fontWeight = FontWeight.Bold,
@@ -432,12 +432,12 @@ fun ActionCommandCard(
             modifier = Modifier
                 .clip(RoundedCornerShape(2.dp))
                 .background(Color(0xFF2563EB))
-                .padding(horizontal = 8.dp, vertical = 4.dp)
+                .padding(horizontal = 10.dp, vertical = 6.dp)
         ) {
             Text(
-                text = "実行",
+                text = "[実行]",
                 color = Color.White,
-                fontSize = 10.sp,
+                fontSize = 11.sp,
                 fontWeight = FontWeight.Bold,
                 fontFamily = PixelFontFamily
             )
@@ -454,6 +454,7 @@ fun OverkillCommandCard(
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .heightIn(min = 52.dp)
             .clip(RoundedCornerShape(3.dp))
             .background(
                 Brush.verticalGradient(
@@ -462,7 +463,7 @@ fun OverkillCommandCard(
             )
             .border(1.dp, Color(0xFFBE123C), RoundedCornerShape(3.dp))
             .clickable(enabled = canAfford, onClick = onClick)
-            .padding(horizontal = 8.dp, vertical = 6.dp),
+            .padding(horizontal = 10.dp, vertical = 6.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -470,16 +471,16 @@ fun OverkillCommandCard(
             Text(
                 text = action.name,
                 color = Color(0xFF9F1239),
-                fontSize = 11.sp,
+                fontSize = 12.sp,
                 fontWeight = FontWeight.Bold,
                 fontFamily = PixelFontFamily,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
             Text(
-                text = "※注意: 敵は一撃死しますが、全社業務が即死し査定が暴落します。",
+                text = "※注意: 敵は一撃死しますが、全社業務が即死し査定が全額没収されます。",
                 color = Color(0xFFE11D48),
-                fontSize = 9.sp,
+                fontSize = 10.sp,
                 fontFamily = PixelFontFamily,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
@@ -490,12 +491,12 @@ fun OverkillCommandCard(
             modifier = Modifier
                 .clip(RoundedCornerShape(2.dp))
                 .background(Color(0xFFE11D48))
-                .padding(horizontal = 8.dp, vertical = 4.dp)
+                .padding(horizontal = 10.dp, vertical = 6.dp)
         ) {
             Text(
-                text = "強行",
+                text = "[強行]",
                 color = Color.White,
-                fontSize = 10.sp,
+                fontSize = 11.sp,
                 fontWeight = FontWeight.Bold,
                 fontFamily = PixelFontFamily
             )
